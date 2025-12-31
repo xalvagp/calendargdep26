@@ -14,26 +14,32 @@ Generate beautiful A3 calendars with custom images and titles for any year. The 
 ## Requirements
 
 - Python 3.x
-- Pillow (PIL) library
+- Pillow (PIL) library - compatible with older versions
 - DejaVu Sans font
 
 ## Directory Structure
 
 ```
-cal2025/
+calendargdep26/
 ├── generate_calendars.py   # Main script
 ├── imagenes_ejemplo/      # Default example images
+├── imagenes_special_days/ # Special date images
 ├── pics/                  # Year-specific images
 │   └── YYYY/             # Replace YYYY with year
 │       ├── Enero.jpg
 │       ├── Febrero.tif
 │       └── titles.txt    # Optional custom titles
-└── calendarios_YYYY/     # Generated calendars
+└── calendarios_pdf/      # Generated calendars
 ```
 
 ## Usage
 
-1. Generate calendars for a specific year:
+1. Generate calendars (defaults to 2026):
+   ```bash
+   python3 generate_calendars.py
+   ```
+   
+   Or for a specific year:
    ```bash
    python3 generate_calendars.py YYYY
    ```
@@ -62,22 +68,25 @@ cal2025/
 ## Special Dates
 
 The calendar includes:
-- Birthdays
-- Christmas (December 25)
+- Birthdays (Marta, Salva, Naná, Clara, Malou)
+- Christmas Eve (December 24 - Noche Buena)
 - New Year's Day (January 1)
+
+Special date images should be placed in `imagenes_special_days/` directory.
 
 ## Examples
 
 The repository includes:
 - Example images in `imagenes_ejemplo/`
-- Generated calendars for 2025-2027
-- Example titles file for 2025 with Spanish locations
+- Special date images in `imagenes_special_days/`
+- Generated calendars in `calendarios_pdf/`
+- Example titles file for 2026 with Spanish locations
 
 ## Resources
 
 - [Notion Project Page](https://www.notion.so/xgpo/Calendars-ddffe2a9a7d846968ea93833bef50f59)
 - [Spanish Calendar Reference](https://www.calendarioslaborales.com/calendario-laboral-madrid-2025.htm)
-- [GitHub Repository](https://github.com/xalvagp/cal2025)
+- [GitHub Repository](https://github.com/xalvagp/calendargdep26)
 
 ## Contributing
 
