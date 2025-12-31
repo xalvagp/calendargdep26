@@ -20,8 +20,8 @@ SPECIAL_DAYS = [
     {'month': 2, 'day': 10, 'title': 'Naná', 'image': 'agp.jpg'},
     {'month': 11, 'day': 23, 'title': 'Clara', 'image': 'cgp.jpg'},
     {'month': 8, 'day': 19, 'title': 'Malou', 'image': 'malou.jpg'},
-    {'month': 12, 'day': 25, 'title': 'Navidad', 'image': 'Diciembre.jpg'},
-    {'month': 1, 'day': 1, 'title': 'Año Nuevo', 'image': 'Enero.jpg'}
+    {'month': 12, 'day': 24, 'title': 'Noche buena', 'image': 'noche_buena.jpg'},
+    {'month': 1, 'day': 1, 'title': 'Año Nuevo', 'image': 'new_year.jpg'}
 ]
 
 def load_titles(year):
@@ -219,7 +219,7 @@ def create_calendar(year, month, titles):
                             
                             special_image_path = None
                             for name in possible_names:
-                                path = f"imagenes_ejemplo/{name}"
+                                path = f"imagenes_special_days/{name}"
                                 if os.path.exists(path):
                                     special_image_path = path
                                     break
@@ -229,7 +229,7 @@ def create_calendar(year, month, titles):
 
                             # Load and resize the special image
                             special_image = Image.open(special_image_path)
-                            special_image = special_image.resize((cell_width, cell_height), Image.Resampling.LANCZOS)
+                            special_image = special_image.resize((cell_width, cell_height), Image.LANCZOS)
                             # Make it semi-transparent
                             special_image.putalpha(128)  # 50% opacity
                             # Paste it into the cell
@@ -288,7 +288,7 @@ def load_and_resize_image(month, year, width=3508, height=2480):
                 
                 # Resize maintaining aspect ratio to fill the area OR fit as requested
                 # Since the user asked for a specific size, we use thumbnail to fit within it
-                img.thumbnail((width, height), Image.Resampling.LANCZOS)
+                img.thumbnail((width, height), Image.LANCZOS)
                 # Create new image with white background
                 new_img = Image.new('RGB', (width, height), 'white')
                 # Calculate position to center the image
@@ -316,7 +316,7 @@ def main():
     year = args.year
     
     # Create output directory if it doesn't exist
-    output_dir = f"calendarios_{year}"
+    output_dir = f"calendarios_pdf"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
