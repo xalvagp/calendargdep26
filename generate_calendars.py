@@ -11,7 +11,7 @@ MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto
 # Default titles for each month
 DEFAULT_TITLES = ['Churros con la abuela', 'Tarraco', 'Parada del 61 Diego de Leon', 'Altafulla, Tarraco', 
                  'Giovanni Marongiu City Museum, Sardegna', 'Las Merindades', 'Granada', 'Nuraghe Losa, Sardegna', 
-                 'La Araña', 'Altafulla, Tarraco', 'Farmaceuticas en Santander', 'Año nuevo 26 Le Chinouse']
+                 'La Araña', 'Altafulla, Tarraco', 'Madrid', 'Año nuevo 26 Le Chinouse']
 
 # Special days with their month, day, and description
 SPECIAL_DAYS = [
@@ -112,7 +112,7 @@ def create_calendar(year, month, titles):
         week_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
         # 11pt at 300 DPI = (11 * 300/72) ≈ 46 pixels
         header_font = ImageFont.load_default()
-        number_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 100)
+        number_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 60)  # Smaller font (was 100)
     except:
         title_font = ImageFont.load_default()
         day_font = ImageFont.load_default()
@@ -121,7 +121,7 @@ def create_calendar(year, month, titles):
         number_font = ImageFont.load_default()
 
     # Draw month and year first (before reflection)
-    month_text = f"{MESES[month-1]} {year}"
+    month_text = f"{MESES[month-1]}"
     text_width = draw.textlength(month_text, font=title_font)
     draw.text(((width - text_width) // 2, header_y + (month_area_height - 60) // 2), month_text, font=title_font, fill='black')
     
@@ -171,15 +171,15 @@ def create_calendar(year, month, titles):
     # Draw the grid and numbers
     start_y = grid_start_y
     
-    # Draw horizontal lines
+    # Draw horizontal lines (excluding week column top and bottom borders)
     # First row (header)
-    draw.line([(start_x, grid_start_y), (week_col_x + week_col_width, grid_start_y)], fill='black', width=2)
+    draw.line([(start_x, grid_start_y), (week_col_x, grid_start_y)], fill='black', width=2)
     # Line after header (at first_row_height)
-    draw.line([(start_x, start_y), (week_col_x + week_col_width, start_y)], fill='black', width=2)
+    draw.line([(start_x, start_y), (week_col_x, start_y)], fill='black', width=2)
     # Rest of the rows
     for i in range(1, 7):
         y = start_y + (i * cell_height)
-        draw.line([(start_x, y), (week_col_x + week_col_width, y)], fill='black', width=2)
+        draw.line([(start_x, y), (week_col_x, y)], fill='black', width=2)
 
     # Draw vertical lines
     # First draw calendar grid lines
@@ -187,16 +187,10 @@ def create_calendar(year, month, titles):
         x = start_x + (i * cell_width)
         draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
     
-    # Draw week numbers column line
-    draw.line([(week_col_x + week_col_width, grid_start_y), (week_col_x + week_col_width, start_y + (6 * cell_height))], fill='black', width=2)
+    # Do not draw week numbers column line to remove border
 
-    # Add shadows for weekend columns (Saturday=5, Sunday=6) and week number column
+    # Add shadows for weekend columns (Saturday=5, Sunday=6) only
     for week_num in range(len(cal)):
-        # Shadow for week number column
-        shadow_rect = [(week_col_x + 2, start_y + week_num * cell_height + 2), 
-                      (week_col_x + week_col_width - 2, start_y + (week_num + 1) * cell_height - 2)]
-        draw.rectangle(shadow_rect, fill=(240, 240, 240))  # Light gray shadow
-        
         # Shadow for Saturday (day 5) and Sunday (day 6)
         for day_num in [5, 6]:  # Saturday and Sunday
             if week_num < len(cal) and cal[week_num][day_num] != 0:  # Only if day exists
@@ -205,18 +199,17 @@ def create_calendar(year, month, titles):
                 draw.rectangle(shadow_rect, fill=(240, 240, 240))  # Light gray shadow
 
     # Redraw grid lines on top of shadows to keep borders visible
-    # Draw horizontal lines
+    # Draw horizontal lines (excluding week column top and bottom borders)
     for i in range(7):
         y = start_y + (i * cell_height)
-        draw.line([(start_x, y), (week_col_x + week_col_width, y)], fill='black', width=2)
+        draw.line([(start_x, y), (week_col_x, y)], fill='black', width=2)
     
-    # Draw vertical lines
+    # Draw vertical lines (excluding week column right border)
     for i in range(8):
         x = start_x + (i * cell_width)
         draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
     
-    # Redraw week numbers column line
-    draw.line([(week_col_x + week_col_width, grid_start_y), (week_col_x + week_col_width, start_y + (6 * cell_height))], fill='black', width=2)
+    # Do not redraw week numbers column line to remove border
 
     # Fill in the numbers and week numbers
     for week_num, week in enumerate(cal):
@@ -227,10 +220,10 @@ def create_calendar(year, month, titles):
             week_date = date(year, month, first_day_of_week)
             week_number = week_date.isocalendar()[1]
             week_text = str(week_number)
-            text_width = draw.textlength(week_text, font=week_font)
+            text_width = draw.textlength(week_text, font=number_font)  # Use same font as day numbers
             x = week_col_x + (week_col_width - text_width) // 2
-            y = start_y + (week_num * cell_height) + 100
-            draw.text((x, y), week_text, font=week_font, fill='black')
+            y = start_y + (week_num * cell_height) + (cell_height - 60) // 2  # Center vertically
+            draw.text((x, y), week_text, font=number_font, fill='black')  # Use same font as day numbers
         
         # Fill in the days
         for day_num, day in enumerate(week):
@@ -279,8 +272,8 @@ def create_calendar(year, month, titles):
                 # Draw the day number
                 day_text = str(day)
                 text_width = draw.textlength(day_text, font=number_font)
-                text_x = start_x + day_num * cell_width + (cell_width - text_width) // 2
-                text_y = start_y + week_num * cell_height + (cell_height - 50) // 2
+                text_x = start_x + day_num * cell_width + cell_width - text_width - 10  # Move to right with padding
+                text_y = start_y + week_num * cell_height + 10  # Move up with padding
                 draw.text((text_x, text_y), day_text, font=number_font, fill='black')
 
     return image

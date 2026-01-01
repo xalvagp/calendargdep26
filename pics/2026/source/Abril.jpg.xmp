@@ -9,17 +9,17 @@
    exif:DateTimeOriginal="2026:01:01 13:02:55"
    xmp:Rating="1"
    xmpMM:DerivedFrom="Abril.jpg"
-   darktable:import_timestamp="1767284953"
-   darktable:change_timestamp="1767269651"
-   darktable:export_timestamp="1767280732"
+   darktable:import_timestamp="1767294345"
+   darktable:change_timestamp="1767294369"
+   darktable:export_timestamp="1767294383"
    darktable:print_timestamp="-1"
    darktable:xmp_version="4"
    darktable:raw_params="0"
    darktable:auto_presets_applied="1"
-   darktable:history_end="9"
+   darktable:history_end="12"
    darktable:iop_order_version="2"
    darktable:history_auto_hash="e1a67c2e5bc102da5d152d82e852ebba"
-   darktable:history_current_hash="6beb8207907ae529b0f54bb22a7d5d51">
+   darktable:history_current_hash="f263704f7837dad1c04418e39cdd5f93">
    <darktable:masks_history>
     <rdf:Seq/>
    </darktable:masks_history>
@@ -111,6 +111,36 @@
       darktable:enabled="1"
       darktable:modversion="1"
       darktable:params="00000000bf18e23d90ef613f83155b3f0200000003000000"
+      darktable:multi_name=""
+      darktable:multi_priority="0"
+      darktable:blendop_version="11"
+      darktable:blendop_params="gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg="/>
+     <rdf:li
+      darktable:num="9"
+      darktable:operation="crop"
+      darktable:enabled="1"
+      darktable:modversion="1"
+      darktable:params="4051df3dc0267f3e3ae6603f7828663f0200000003000000"
+      darktable:multi_name=""
+      darktable:multi_priority="0"
+      darktable:blendop_version="11"
+      darktable:blendop_params="gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg="/>
+     <rdf:li
+      darktable:num="10"
+      darktable:operation="crop"
+      darktable:enabled="1"
+      darktable:modversion="1"
+      darktable:params="4051df3dbf267f3e3be6603f7a28663f0200000003000000"
+      darktable:multi_name=""
+      darktable:multi_priority="0"
+      darktable:blendop_version="11"
+      darktable:blendop_params="gz14eJxjYIAACQYYOOHEgAZY0QVwggZ7CB6pfNoAAE8gGQg="/>
+     <rdf:li
+      darktable:num="11"
+      darktable:operation="crop"
+      darktable:enabled="1"
+      darktable:modversion="1"
+      darktable:params="00000000bfcd953d0000803f6ef06a3f0200000003000000"
       darktable:multi_name=""
       darktable:multi_priority="0"
       darktable:blendop_version="11"
