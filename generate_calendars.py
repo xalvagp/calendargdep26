@@ -9,9 +9,9 @@ DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Doming
 MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
 # Default titles for each month
-DEFAULT_TITLES = ['Retiro', 'Tarraco', 'Tarraco', 'Acueducto de Tarraco', 
-                 'Sardignia', 'Tarraco', 'Retiro', 'Sardignia', 
-                 'La Araña', 'Retiro', 'Farmacia', 'Sardignia']
+DEFAULT_TITLES = ['Churros con la abuela', 'Tarraco', 'Parada del 61 Diego de Leon', 'Altafulla, Tarraco', 
+                 'Giovanni Marongiu City Museum, Sardegna', 'Las Merindades', 'Granada', 'Nuraghe Losa, Sardegna', 
+                 'La Araña', 'Altafulla, Tarraco', 'Farmaceuticas en Santander', 'Año nuevo 26 Le Chinouse']
 
 # Special days with their month, day, and description
 SPECIAL_DAYS = [
@@ -21,6 +21,7 @@ SPECIAL_DAYS = [
     {'month': 11, 'day': 23, 'title': 'Clara', 'image': 'cgp.jpg'},
     {'month': 8, 'day': 19, 'title': 'Malou', 'image': 'malou.jpg'},
     {'month': 12, 'day': 24, 'title': 'Noche buena', 'image': 'noche_buena.jpg'},
+    {'month': 7, 'day': 14, 'title': 'GdeP', 'image': 'gdep.jpg'},
     {'month': 1, 'day': 1, 'title': 'Año Nuevo', 'image': 'new_year.jpg'}
 ]
 
@@ -142,8 +143,8 @@ def create_calendar(year, month, titles):
     # Paste the cropped reflection
     temp_image.paste(cropped_reflection, (0, 0), cropped_reflection)
     
-    # Paste the visible portion in front of the month name
-    image.paste(temp_image, (image_x, header_y - 28), temp_image)
+    # Paste the visible portion directly under the main image
+#    image.paste(temp_image, (image_x, month_image.height - 305), temp_image)
     
     # Update position for days row
     days_y = header_y + month_area_height + 40
@@ -187,6 +188,34 @@ def create_calendar(year, month, titles):
         draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
     
     # Draw week numbers column line
+    draw.line([(week_col_x + week_col_width, grid_start_y), (week_col_x + week_col_width, start_y + (6 * cell_height))], fill='black', width=2)
+
+    # Add shadows for weekend columns (Saturday=5, Sunday=6) and week number column
+    for week_num in range(len(cal)):
+        # Shadow for week number column
+        shadow_rect = [(week_col_x + 2, start_y + week_num * cell_height + 2), 
+                      (week_col_x + week_col_width - 2, start_y + (week_num + 1) * cell_height - 2)]
+        draw.rectangle(shadow_rect, fill=(240, 240, 240))  # Light gray shadow
+        
+        # Shadow for Saturday (day 5) and Sunday (day 6)
+        for day_num in [5, 6]:  # Saturday and Sunday
+            if week_num < len(cal) and cal[week_num][day_num] != 0:  # Only if day exists
+                shadow_rect = [(start_x + day_num * cell_width + 2, start_y + week_num * cell_height + 2), 
+                              (start_x + (day_num + 1) * cell_width - 2, start_y + (week_num + 1) * cell_height - 2)]
+                draw.rectangle(shadow_rect, fill=(240, 240, 240))  # Light gray shadow
+
+    # Redraw grid lines on top of shadows to keep borders visible
+    # Draw horizontal lines
+    for i in range(7):
+        y = start_y + (i * cell_height)
+        draw.line([(start_x, y), (week_col_x + week_col_width, y)], fill='black', width=2)
+    
+    # Draw vertical lines
+    for i in range(8):
+        x = start_x + (i * cell_width)
+        draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
+    
+    # Redraw week numbers column line
     draw.line([(week_col_x + week_col_width, grid_start_y), (week_col_x + week_col_width, start_y + (6 * cell_height))], fill='black', width=2)
 
     # Fill in the numbers and week numbers
