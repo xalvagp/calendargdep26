@@ -3,444 +3,411 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calendario GdeP — Subir Fotos</title>
+  <meta name="description" content="Generador de calendarios A3 personalizados en español con fotos, días especiales y número de semana." />
+  <title>Calendario GdeP</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --dark:   #1a1a2e;
+      --accent: #4f8ef7;
+      --green:  #27ae60;
+      --light:  #f5f7fb;
+      --card:   #ffffff;
+      --text:   #222;
+      --muted:  #666;
+      --radius: 12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #f0f2f5;
-      color: #222;
-      min-height: 100vh;
+      background: var(--light);
+      color: var(--text);
+      line-height: 1.6;
     }
 
-    header {
-      background: #1a1a2e;
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--dark);
+      padding: 0 32px;
+      display: flex; align-items: center; gap: 32px;
+      height: 56px;
+    }
+    nav .logo { color: #fff; font-weight: 700; font-size: 1rem; text-decoration: none; }
+    nav a {
+      color: rgba(255,255,255,.7); text-decoration: none;
+      font-size: 0.88rem; transition: color .2s;
+    }
+    nav a:hover { color: #fff; }
+    nav .gh-btn {
+      margin-left: auto;
+      background: rgba(255,255,255,.12);
+      color: #fff; padding: 6px 14px; border-radius: 6px;
+      font-size: 0.85rem; font-weight: 600;
+      text-decoration: none; transition: background .2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    nav .gh-btn:hover { background: rgba(255,255,255,.22); }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
       color: #fff;
-      padding: 20px 32px;
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      flex-wrap: wrap;
-    }
-
-    header h1 { font-size: 1.4rem; font-weight: 600; flex: 1; }
-
-    .year-selector {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .year-selector label { font-size: 0.9rem; opacity: 0.8; }
-
-    .year-selector input {
-      width: 90px;
-      padding: 6px 10px;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
+      padding: 80px 32px 90px;
       text-align: center;
     }
-
-    .btn {
-      padding: 8px 18px;
-      border: none;
-      border-radius: 6px;
-      font-size: 0.9rem;
-      cursor: pointer;
-      font-weight: 600;
-      transition: opacity 0.15s, transform 0.1s;
+    .hero h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; margin-bottom: 16px; }
+    .hero p  { font-size: 1.1rem; opacity: .8; max-width: 560px; margin: 0 auto 36px; }
+    .hero-badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .badge {
+      padding: 5px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600;
     }
-    .btn:hover { opacity: 0.85; }
-    .btn:active { transform: scale(0.97); }
+    .badge-blue   { background: rgba(79,142,247,.25); color: #90bfff; border: 1px solid rgba(79,142,247,.4); }
+    .badge-green  { background: rgba(39,174,96,.25);  color: #7de0a8; border: 1px solid rgba(39,174,96,.4); }
+    .badge-orange { background: rgba(230,126,34,.25); color: #ffc17a; border: 1px solid rgba(230,126,34,.4); }
 
-    .btn-primary   { background: #4f8ef7; color: #fff; }
-    .btn-generate  { background: #27ae60; color: #fff; }
-    .btn-danger    { background: #e74c3c; color: #fff; padding: 5px 12px; font-size: 0.8rem; }
-
-    main {
-      max-width: 1200px;
-      margin: 32px auto;
-      padding: 0 20px;
+    /* ── SECTION ── */
+    section { padding: 72px 20px; }
+    .container { max-width: 960px; margin: 0 auto; }
+    .section-title {
+      font-size: 1.5rem; font-weight: 700; margin-bottom: 8px;
     }
+    .section-sub { color: var(--muted); margin-bottom: 40px; }
 
-    .toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .progress-bar-wrap {
-      background: #dde1e9;
-      border-radius: 8px;
-      height: 8px;
-      flex: 1;
-      min-width: 120px;
-    }
-    .progress-bar {
-      height: 100%;
-      background: #27ae60;
-      border-radius: 8px;
-      transition: width 0.4s;
-    }
-    .progress-label { font-size: 0.85rem; color: #555; }
-
-    .grid {
+    /* ── FEATURES ── */
+    .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 20px;
     }
-
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
-      display: flex;
-      flex-direction: column;
-      transition: box-shadow 0.2s;
+    .feature-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.07);
     }
-    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+    .feature-card .icon { font-size: 2rem; margin-bottom: 12px; }
+    .feature-card h3 { font-size: 1rem; margin-bottom: 6px; }
+    .feature-card p  { font-size: 0.88rem; color: var(--muted); }
 
-    .card-preview {
-      height: 160px;
-      background: #e8eaed;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
-      cursor: pointer;
+    /* ── MONTHS STRIP ── */
+    #galeria { background: #fff; }
+    .months-strip {
+      display: flex; gap: 12px; overflow-x: auto;
+      padding-bottom: 8px;
+      scrollbar-width: thin;
     }
-    .card-preview img {
-      width: 100%; height: 100%;
-      object-fit: cover;
-      display: none;
-    }
-    .card-preview .placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      color: #aaa;
-    }
-    .card-preview .placeholder svg { width: 40px; height: 40px; }
-    .card-preview .placeholder span { font-size: 0.8rem; }
-
-    /* Drag-over state */
-    .card.drag-over .card-preview { background: #d0e8ff; outline: 2px dashed #4f8ef7; }
-
-    .card-body {
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1;
-    }
-
-    .card-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .badge {
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-weight: 600;
-    }
-    .badge-ok   { background: #d4f5e0; color: #1a7a40; }
-    .badge-miss { background: #fde8e8; color: #a52828; }
-
-    .card-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .upload-input { display: none; }
-
-    .spinner {
-      display: none;
-      width: 18px; height: 18px;
-      border: 2px solid #ccc;
-      border-top-color: #4f8ef7;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Toast */
-    #toast {
-      position: fixed;
-      bottom: 24px; right: 24px;
-      background: #333; color: #fff;
-      padding: 12px 20px;
+    .month-thumb {
+      flex: 0 0 160px;
       border-radius: 8px;
-      font-size: 0.9rem;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s;
-      max-width: 320px;
-      z-index: 100;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
     }
-    #toast.show { opacity: 1; }
-    #toast.ok  { background: #27ae60; }
-    #toast.err { background: #e74c3c; }
+    .month-thumb img {
+      width: 100%; height: 110px; object-fit: cover; display: block;
+    }
+    .month-thumb .label {
+      background: var(--dark); color: #fff;
+      text-align: center; font-size: 0.78rem; font-weight: 600;
+      padding: 5px;
+    }
 
-    /* Generate modal */
-    #modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.5);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
+    /* ── HOW TO USE ── */
+    #uso { background: var(--light); }
+    .steps { display: flex; flex-direction: column; gap: 24px; }
+    .step {
+      display: flex; gap: 20px; align-items: flex-start;
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
     }
-    #modal-overlay.show { display: flex; }
-    #modal {
-      background: #fff;
-      border-radius: 12px;
-      padding: 28px 32px;
-      max-width: 480px;
-      width: 90%;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+    .step-num {
+      flex: 0 0 40px; height: 40px;
+      background: var(--accent); color: #fff;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.1rem;
     }
-    #modal h2 { font-size: 1.1rem; }
-    #modal pre {
+    .step-body h3 { font-size: 1rem; margin-bottom: 6px; }
+    .step-body p  { font-size: 0.9rem; color: var(--muted); }
+
+    code, pre {
+      font-family: 'Courier New', monospace;
       background: #1a1a2e;
       color: #a8f0c0;
-      border-radius: 8px;
-      padding: 14px;
-      font-size: 0.8rem;
-      white-space: pre-wrap;
-      max-height: 240px;
-      overflow-y: auto;
+      border-radius: 6px;
     }
-    #modal .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    code { padding: 2px 7px; font-size: 0.85em; }
+    pre  {
+      padding: 16px 20px; font-size: 0.85rem;
+      overflow-x: auto; margin-top: 12px; line-height: 1.7;
+    }
+
+    /* ── SPECIAL DAYS ── */
+    #especiales { background: #fff; }
+    .specials-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .special-card {
+      background: var(--light);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      border-left: 4px solid var(--accent);
+    }
+    .special-card .date { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+    .special-card .name { font-weight: 700; }
+
+    /* ── LOCAL SERVER ── */
+    #servidor { background: var(--dark); color: #fff; }
+    #servidor .section-title { color: #fff; }
+    #servidor .section-sub   { color: rgba(255,255,255,.6); }
+    .server-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 600px) { .server-grid { grid-template-columns: 1fr; } }
+    .server-card {
+      background: rgba(255,255,255,.07);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .server-card h3 { margin-bottom: 10px; font-size: 1rem; }
+    .server-card p  { font-size: 0.88rem; color: rgba(255,255,255,.65); margin-bottom: 8px; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #111;
+      color: rgba(255,255,255,.5);
+      text-align: center;
+      padding: 28px 20px;
+      font-size: 0.82rem;
+    }
+    footer a { color: rgba(255,255,255,.7); text-decoration: none; }
+    footer a:hover { color: #fff; }
+
+    /* ── SCROLL FADE ── */
+    .fade-in {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    .fade-in.visible { opacity: 1; transform: none; }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>📅 Calendario GdeP — Subir Fotos</h1>
-  <div class="year-selector">
-    <label for="year-input">Año:</label>
-    <input type="number" id="year-input" value="2026" min="2020" max="2099" />
-    <button class="btn btn-primary" onclick="loadStatus()">Cargar</button>
-  </div>
-  <button class="btn btn-generate" onclick="generateCalendars()">⚙ Generar PDFs</button>
-</header>
+<!-- NAV -->
+<nav>
+  <a class="logo" href="#">📅 Calendario GdeP</a>
+  <a href="#uso">Cómo usar</a>
+  <a href="#especiales">Días especiales</a>
+  <a href="#servidor">Servidor local</a>
+  <a class="gh-btn" href="https://github.com/xalvagp/calendargdep26" target="_blank">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+    </svg>
+    GitHub
+  </a>
+</nav>
 
-<main>
-  <div class="toolbar">
-    <span class="progress-label" id="progress-label">— de 12 fotos</span>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+<!-- HERO -->
+<section class="hero">
+  <h1>Calendarios A3 personalizados</h1>
+  <p>Genera calendarios de pared en español con tus fotos, días especiales y número de semana ISO. Listos para imprimir en A3.</p>
+  <div class="hero-badges">
+    <span class="badge badge-blue">Python · Pillow</span>
+    <span class="badge badge-green">A3 · 300 DPI · 4 mm bleed</span>
+    <span class="badge badge-orange">JPG · TIF · PNG · WebP</span>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container fade-in">
+    <div class="section-title">Características</div>
+    <div class="section-sub">Todo lo que necesitas para un calendario de calidad de imprenta</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">🖼️</div>
+        <h3>Foto por mes</h3>
+        <p>Una imagen diferente para cada mes. Soporte para JPG, TIF, PNG y WebP.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📐</div>
+        <h3>Formato A3 con bleed</h3>
+        <p>297 × 420 mm a 300 DPI con 4 mm de sangrado para impresión profesional.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🎂</div>
+        <h3>Días especiales</h3>
+        <p>Cumpleaños y fechas señaladas resaltados con imagen de fondo en la celda del día.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📅</div>
+        <h3>Semana ISO</h3>
+        <p>Columna lateral con número de semana según el estándar ISO 8601.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🌅</div>
+        <h3>Fin de semana resaltado</h3>
+        <p>Sábado y domingo con fondo gris para diferenciarlos a golpe de vista.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">✏️</div>
+        <h3>Títulos personalizados</h3>
+        <p>Pie de foto personalizable por mes mediante un sencillo fichero <code>titles.txt</code>.</p>
+      </div>
     </div>
   </div>
-  <div class="grid" id="grid"></div>
-</main>
+</section>
 
-<div id="toast"></div>
-
-<div id="modal-overlay">
-  <div id="modal">
-    <h2 id="modal-title">Generando calendarios…</h2>
-    <pre id="modal-output">Por favor espera.</pre>
-    <div class="modal-actions">
-      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+<!-- GALLERY -->
+<section id="galeria">
+  <div class="container fade-in">
+    <div class="section-title">Imágenes de ejemplo</div>
+    <div class="section-sub">Fotos incluidas como ejemplo en el repositorio</div>
+    <div class="months-strip">
+      <div class="month-thumb"><img src="imagenes_ejemplo/Enero.jpg"      alt="Enero"      /><div class="label">Enero</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Febrero.jpg"    alt="Febrero"    /><div class="label">Febrero</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Marzo.jpg"      alt="Marzo"      /><div class="label">Marzo</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Abril.jpg"      alt="Abril"      /><div class="label">Abril</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Mayo.jpg"       alt="Mayo"       /><div class="label">Mayo</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Junio.jpg"      alt="Junio"      /><div class="label">Junio</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Julio.jpg"      alt="Julio"      /><div class="label">Julio</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Agosto.jpg"     alt="Agosto"     /><div class="label">Agosto</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Septiembre.jpg" alt="Septiembre" /><div class="label">Septiembre</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Octubre.jpg"    alt="Octubre"    /><div class="label">Octubre</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Noviembre.jpg"  alt="Noviembre"  /><div class="label">Noviembre</div></div>
+      <div class="month-thumb"><img src="imagenes_ejemplo/Diciembre.jpg"  alt="Diciembre"  /><div class="label">Diciembre</div></div>
     </div>
   </div>
-</div>
+</section>
+
+<!-- HOW TO USE -->
+<section id="uso">
+  <div class="container fade-in">
+    <div class="section-title">Cómo usar</div>
+    <div class="section-sub">Desde cero hasta tener los 12 PDFs listos para imprimir</div>
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Clonar el repositorio e instalar dependencias</h3>
+          <p>Necesitas Python 3 y la librería Pillow.</p>
+          <pre>git clone https://github.com/xalvagp/calendargdep26.git
+cd calendargdep26
+pip install pillow</pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Añadir tus fotos</h3>
+          <p>Crea la carpeta del año y copia una foto por mes con el nombre del mes en español.</p>
+          <pre>mkdir -p pics/2026
+# Copia tus fotos:
+pics/2026/Enero.jpg
+pics/2026/Febrero.tif
+pics/2026/Marzo.webp
+# … y así hasta Diciembre</pre>
+          <p style="margin-top:10px">Formatos soportados: <code>.jpg</code> <code>.jpeg</code> <code>.tif</code> <code>.tiff</code> <code>.png</code> <code>.webp</code></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Títulos personalizados (opcional)</h3>
+          <p>Crea <code>pics/2026/titles.txt</code> con exactamente 12 líneas, una por mes.</p>
+          <pre>Churros con la abuela
+Tarraco
+Parada del 61 Diego de León
+…</pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Generar los calendarios</h3>
+          <p>El script genera 12 PDFs en la carpeta <code>calendarios_pdf/</code>.</p>
+          <pre>python3 generate_calendars.py 2026</pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- SPECIAL DAYS -->
+<section id="especiales">
+  <div class="container fade-in">
+    <div class="section-title">Días especiales</div>
+    <div class="section-sub">Estas fechas aparecen resaltadas en el calendario con una imagen de fondo</div>
+    <div class="specials-grid">
+      <div class="special-card"><div class="date">1 de enero</div><div class="name">🎆 Año Nuevo</div></div>
+      <div class="special-card"><div class="date">10 de febrero</div><div class="name">🎂 Naná</div></div>
+      <div class="special-card"><div class="date">26 de mayo</div><div class="name">🎂 Salva</div></div>
+      <div class="special-card"><div class="date">24 de junio</div><div class="name">🎂 Marta</div></div>
+      <div class="special-card"><div class="date">14 de julio</div><div class="name">🎉 GdeP</div></div>
+      <div class="special-card"><div class="date">19 de agosto</div><div class="name">🎂 Malou</div></div>
+      <div class="special-card"><div class="date">23 de noviembre</div><div class="name">🎂 Clara</div></div>
+      <div class="special-card"><div class="date">24 de diciembre</div><div class="name">🎄 Noche Buena</div></div>
+    </div>
+    <p style="margin-top:24px; font-size:0.88rem; color:var(--muted)">
+      Para añadir o cambiar días especiales, edita la lista <code>SPECIAL_DAYS</code> en <code>generate_calendars.py</code>
+      y coloca la imagen correspondiente en <code>imagenes_special_days/</code>.
+    </p>
+  </div>
+</section>
+
+<!-- LOCAL SERVER -->
+<section id="servidor">
+  <div class="container fade-in">
+    <div class="section-title">Interfaz web local</div>
+    <div class="section-sub">Sube fotos cómodamente desde el navegador con el servidor incluido</div>
+    <div class="server-grid">
+      <div class="server-card">
+        <h3>Arrancar el servidor</h3>
+        <p>Instala Flask y lanza <code>server.py</code>. Abre <code>http://localhost:5000</code> en tu navegador.</p>
+        <pre>pip install flask
+python3 server.py</pre>
+      </div>
+      <div class="server-card">
+        <h3>Qué puedes hacer</h3>
+        <p>• Seleccionar o arrastrar fotos para cada mes</p>
+        <p>• Ver el progreso (X de 12 fotos)</p>
+        <p>• Generar los 12 PDFs con un clic</p>
+        <p>• Cambiar de año sin tocar la terminal</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <a href="https://github.com/xalvagp/calendargdep26" target="_blank">xalvagp/calendargdep26</a>
+    &nbsp;·&nbsp;
+    Generado con Python + Pillow
+    &nbsp;·&nbsp;
+    <a href="https://github.com/xalvagp/calendargdep26/blob/main/generate_calendars.py">Ver código</a>
+  </p>
+</footer>
 
 <script>
-  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  let status = {};
-
-  function getYear() { return parseInt(document.getElementById('year-input').value); }
-
-  /* ── Status ── */
-  async function loadStatus() {
-    const year = getYear();
-    try {
-      const r = await fetch(`/api/status/${year}`);
-      status = await r.json();
-    } catch {
-      status = {};
-      MESES.forEach(m => status[m] = false);
-    }
-    renderGrid();
-    updateProgress();
-  }
-
-  /* ── Grid ── */
-  function renderGrid() {
-    const grid = document.getElementById('grid');
-    grid.innerHTML = '';
-    MESES.forEach((mes, i) => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.id = `card-${mes}`;
-
-      card.innerHTML = `
-        <div class="card-preview" id="preview-${mes}" onclick="triggerUpload('${mes}')">
-          <img id="img-${mes}" alt="${mes}" />
-          <div class="placeholder" id="placeholder-${mes}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <span>Click o arrastra aquí</span>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="card-title">
-            ${mes}
-            <span class="badge ${status[mes] ? 'badge-ok' : 'badge-miss'}" id="badge-${mes}">
-              ${status[mes] ? '✓ Subida' : 'Falta'}
-            </span>
-          </div>
-          <div class="card-actions">
-            <button class="btn btn-primary" onclick="triggerUpload('${mes}')">Seleccionar foto</button>
-            <div class="spinner" id="spinner-${mes}"></div>
-            ${status[mes] ? `<button class="btn btn-danger" onclick="removePhoto('${mes}')">✕</button>` : ''}
-          </div>
-        </div>
-        <input type="file" class="upload-input" id="input-${mes}"
-               accept=".jpg,.jpeg,.png,.tif,.tiff,.webp"
-               onchange="uploadFile('${mes}', this.files[0])" />
-      `;
-
-      // Drag & drop
-      const preview = card.querySelector('.card-preview');
-      preview.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
-      preview.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-      preview.addEventListener('drop', e => {
-        e.preventDefault();
-        card.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file) uploadFile(mes, file);
-      });
-
-      grid.appendChild(card);
-    });
-  }
-
-  /* ── Upload ── */
-  function triggerUpload(mes) {
-    document.getElementById(`input-${mes}`).click();
-  }
-
-  async function uploadFile(mes, file) {
-    if (!file) return;
-    const year = getYear();
-    const spinner = document.getElementById(`spinner-${mes}`);
-    spinner.style.display = 'block';
-
-    // Local preview
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = document.getElementById(`img-${mes}`);
-      img.src = e.target.result;
-      img.style.display = 'block';
-      document.getElementById(`placeholder-${mes}`).style.display = 'none';
-    };
-    reader.readAsDataURL(file);
-
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const r = await fetch(`/api/upload/${year}/${mes}`, { method: 'POST', body: fd });
-      const data = await r.json();
-      if (data.success) {
-        status[mes] = true;
-        setBadge(mes, true);
-        showToast(`${mes} subida correctamente`, 'ok');
-      } else {
-        showToast(`Error: ${data.error}`, 'err');
-      }
-    } catch(e) {
-      showToast('Error de conexión', 'err');
-    }
-    spinner.style.display = 'none';
-    updateProgress();
-  }
-
-  async function removePhoto(mes) {
-    // Just toggle state locally (server keeps file until overwritten)
-    status[mes] = false;
-    setBadge(mes, false);
-    document.getElementById(`img-${mes}`).style.display = 'none';
-    document.getElementById(`placeholder-${mes}`).style.display = 'flex';
-    updateProgress();
-    showToast(`${mes} marcada como pendiente`, '');
-  }
-
-  /* ── Badge ── */
-  function setBadge(mes, ok) {
-    const b = document.getElementById(`badge-${mes}`);
-    b.className = `badge ${ok ? 'badge-ok' : 'badge-miss'}`;
-    b.textContent = ok ? '✓ Subida' : 'Falta';
-  }
-
-  /* ── Progress ── */
-  function updateProgress() {
-    const done = MESES.filter(m => status[m]).length;
-    document.getElementById('progress-label').textContent = `${done} de 12 fotos`;
-    document.getElementById('progress-bar').style.width = `${(done / 12) * 100}%`;
-  }
-
-  /* ── Generate ── */
-  async function generateCalendars() {
-    const year = getYear();
-    document.getElementById('modal-title').textContent = `Generando calendarios ${year}…`;
-    document.getElementById('modal-output').textContent = 'Por favor espera, esto puede tardar unos minutos.';
-    document.getElementById('modal-overlay').classList.add('show');
-
-    try {
-      const r = await fetch(`/api/generate/${year}`, { method: 'POST' });
-      const data = await r.json();
-      if (data.success) {
-        document.getElementById('modal-title').textContent = '✅ Calendarios generados';
-        document.getElementById('modal-output').textContent = data.output || 'Completado.';
-      } else {
-        document.getElementById('modal-title').textContent = '❌ Error al generar';
-        document.getElementById('modal-output').textContent = data.error || 'Error desconocido.';
-      }
-    } catch(e) {
-      document.getElementById('modal-title').textContent = '❌ Error de conexión';
-      document.getElementById('modal-output').textContent = String(e);
-    }
-  }
-
-  function closeModal() {
-    document.getElementById('modal-overlay').classList.remove('show');
-  }
-
-  /* ── Toast ── */
-  let toastTimer;
-  function showToast(msg, type) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = `show ${type}`;
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.className = '', 3000);
-  }
-
-  /* ── Init ── */
-  loadStatus();
+  // Scroll fade-in
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 </script>
 </body>
 </html>
