@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendario GdeP — Gestión local</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --dark:   #1a1a2e;
+      --accent: #4f8ef7;
+      --green:  #27ae60;
+      --red:    #e74c3c;
+      --light:  #f5f7fb;
+      --card:   #ffffff;
+      --border: #e2e6ea;
+      --text:   #222;
+      --muted:  #777;
+      --radius: 10px;
+      --sidebar-w: 220px;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--light);
+      color: var(--text);
+      display: flex; flex-direction: column;
+    }
+
+    /* ── TOP BAR ── */
+    header {
+      background: var(--dark); color: #fff;
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 20px; height: 52px; flex-shrink: 0;
+    }
+    header h1 { font-size: 1rem; font-weight: 700; flex: 1; }
+    .year-wrap { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+    .year-wrap label { opacity: .7; }
+    .year-wrap select {
+      padding: 4px 8px; border: none; border-radius: 6px;
+      font-size: 0.9rem; background: rgba(255,255,255,.15);
+      color: #fff; cursor: pointer; outline: none;
+    }
+    .year-wrap select option { background: var(--dark); }
+    .btn-new-year {
+      background: rgba(255,255,255,.15); border: none; color: #fff;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-new-year:hover { background: rgba(255,255,255,.25); }
+
+    /* ── LAYOUT ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    aside {
+      width: var(--sidebar-w); background: #fff;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 16px 0; flex-shrink: 0; overflow-y: auto;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px; cursor: pointer; font-size: 0.9rem;
+      color: var(--muted); border-left: 3px solid transparent;
+      transition: all .15s; user-select: none;
+    }
+    .nav-item:hover { background: var(--light); color: var(--text); }
+    .nav-item.active {
+      color: var(--accent); border-left-color: var(--accent);
+      background: #eef4ff; font-weight: 600;
+    }
+    .nav-item .icon { font-size: 1.1rem; }
+    .nav-divider { height: 1px; background: var(--border); margin: 8px 16px; }
+    .nav-section { padding: 8px 20px 4px; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+    .progress-mini {
+      margin: 8px 16px 0;
+      background: var(--light); border-radius: 8px; height: 6px; overflow: hidden;
+    }
+    .progress-mini-bar { height: 100%; background: var(--green); border-radius: 8px; transition: width .4s; }
+    .progress-mini-label { padding: 4px 20px 0; font-size: 0.75rem; color: var(--muted); }
+
+    /* ── MAIN ── */
+    main { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* ── SECTION HEADER ── */
+    .page-header { margin-bottom: 20px; }
+    .page-header h2 { font-size: 1.25rem; }
+    .page-header p  { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+
+    /* ── GRID ── */
+    .grid-12 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── MONTH CARD ── */
+    .m-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,.07);
+      display: flex; flex-direction: column;
+      transition: box-shadow .2s;
+    }
+    .m-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+
+    .m-thumb {
+      height: 140px; background: var(--light);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative; cursor: pointer;
+    }
+    .m-thumb img { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .m-thumb .ph {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      color: #bbb; pointer-events: none;
+    }
+    .m-thumb .ph svg { width: 36px; height: 36px; }
+    .m-thumb .ph span { font-size: 0.75rem; }
+    .m-thumb .drop-overlay {
+      display: none; position: absolute; inset: 0;
+      background: rgba(79,142,247,.15);
+      border: 2px dashed var(--accent);
+      align-items: center; justify-content: center;
+      font-weight: 600; color: var(--accent);
+    }
+    .m-card.drag-over .drop-overlay { display: flex; }
+
+    .m-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .m-name { font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
+
+    .badge { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-ok   { background: #d4f5e0; color: #1a7a40; }
+    .badge-miss { background: #fde8e8; color: #a52828; }
+
+    .m-meta { font-size: 0.75rem; color: var(--muted); min-height: 16px; }
+
+    .m-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .btn {
+      padding: 5px 12px; border: none; border-radius: 6px;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:active { transform: scale(0.97); }
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+    .btn-primary  { background: var(--accent); color: #fff; }
+    .btn-success  { background: var(--green);  color: #fff; }
+    .btn-danger   { background: var(--red);    color: #fff; }
+    .btn-ghost    { background: var(--light);  color: var(--text); border: 1px solid var(--border); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .spinner {
+      display: none; width: 16px; height: 16px;
+      border: 2px solid #ddd; border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    input[type=file] { display: none; }
+
+    /* ── GENERATE PAGE ── */
+    .gen-wrap { max-width: 700px; }
+    .gen-card {
+      background: var(--card); border-radius: var(--radius);
+      padding: 28px; box-shadow: 0 1px 6px rgba(0,0,0,.07);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .gen-card h3 { font-size: 1rem; }
+    .gen-status { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--muted); }
+    pre {
+      background: #1a1a2e; color: #a8f0c0;
+      border-radius: 8px; padding: 16px;
+      font-size: 0.8rem; white-space: pre-wrap;
+      max-height: 320px; overflow-y: auto; font-family: monospace;
+    }
+
+    /* ── DOWNLOADS PAGE ── */
+    .pdf-list { display: flex; flex-direction: column; gap: 10px; max-width: 600px; }
+    .pdf-row {
+      background: var(--card); border-radius: var(--radius);
+      padding: 14px 18px; display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .pdf-icon { font-size: 1.5rem; }
+    .pdf-info { flex: 1; }
+    .pdf-name { font-weight: 600; }
+    .pdf-size { font-size: 0.78rem; color: var(--muted); }
+    .pdf-date { font-size: 0.78rem; color: var(--muted); }
+
+    /* ── LIGHTBOX ── */
+    #lightbox {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.85);
+      align-items: center; justify-content: center;
+      cursor: zoom-out;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img { max-width: 92vw; max-height: 88vh; border-radius: 8px; object-fit: contain; }
+    #lightbox .lb-close {
+      position: absolute; top: 16px; right: 20px;
+      color: #fff; font-size: 2rem; cursor: pointer; line-height: 1;
+    }
+    #lightbox .lb-caption {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: #fff; font-size: 1rem; font-weight: 600;
+      background: rgba(0,0,0,.4); padding: 4px 16px; border-radius: 20px;
+    }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 20px; right: 20px;
+      padding: 10px 18px; border-radius: 8px;
+      font-size: 0.88rem; color: #fff; background: #333;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s; z-index: 300; max-width: 300px;
+    }
+    #toast.show { opacity: 1; }
+    #toast.ok  { background: var(--green); }
+    #toast.err { background: var(--red);   }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      aside { width: 56px; }
+      .nav-item span, .nav-section, .progress-mini, .progress-mini-label { display: none; }
+      .nav-item { justify-content: center; padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <h1>📅 Calendario GdeP</h1>
+  <div class="year-wrap">
+    <label>Año:</label>
+    <select id="year-sel" onchange="onYearChange()"></select>
+    <button class="btn-new-year" onclick="promptNewYear()">+ Nuevo año</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="nav-section">Ver</div>
+    <div class="nav-item active" data-page="gallery" onclick="goTo('gallery')">
+      <span class="icon">🖼️</span><span>Galería</span>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Gestionar</div>
+    <div class="nav-item" data-page="upload" onclick="goTo('upload')">
+      <span class="icon">⬆️</span><span>Subir fotos</span>
+    </div>
+    <div class="nav-item" data-page="generate" onclick="goTo('generate')">
+      <span class="icon">⚙️</span><span>Generar PDFs</span>
+    </div>
+    <div class="nav-item" data-page="downloads" onclick="goTo('downloads')">
+      <span class="icon">📥</span><span>Descargar PDFs</span>
+    </div>
+
+    <div style="flex:1"></div>
+    <div class="progress-mini-label" id="sb-label">— / 12</div>
+    <div class="progress-mini">
+      <div class="progress-mini-bar" id="sb-bar" style="width:0%"></div>
+    </div>
+    <div style="height:12px"></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- GALLERY -->
+    <div class="page active" id="page-gallery">
+      <div class="page-header">
+        <h2>Galería de fotos</h2>
+        <p>Fotos subidas para el año seleccionado. Haz clic en una imagen para ampliarla.</p>
+      </div>
+      <div class="grid-12" id="gallery-grid"></div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="page" id="page-upload">
+      <div class="page-header">
+        <h2>Subir fotos</h2>
+        <p>Arrastra o selecciona una foto para cada mes. Formatos: JPG, TIF, PNG, WebP (máx. 200 MB).</p>
+      </div>
+      <div class="grid-12" id="upload-grid"></div>
+    </div>
+
+    <!-- GENERATE -->
+    <div class="page" id="page-generate">
+      <div class="page-header">
+        <h2>Generar calendarios</h2>
+        <p>Ejecuta el script para generar los 12 PDFs del año seleccionado.</p>
+      </div>
+      <div class="gen-wrap">
+        <div class="gen-card">
+          <div class="gen-status" id="gen-status">Listo para generar.</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn btn-success" id="gen-btn" onclick="runGenerate()">⚙ Generar PDFs</button>
+            <div class="spinner" id="gen-spinner"></div>
+          </div>
+          <pre id="gen-output" style="display:none"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOWNLOADS -->
+    <div class="page" id="page-downloads">
+      <div class="page-header">
+        <h2>Descargar PDFs</h2>
+        <p>Calendarios generados listos para descargar e imprimir en A3.</p>
+      </div>
+      <div class="pdf-list" id="pdf-list">
+        <p style="color:var(--muted);font-size:0.9rem">Cargando…</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox()">
+  <span class="lb-close" onclick="closeLightbox()">✕</span>
+  <img id="lb-img" src="" alt="" />
+  <div class="lb-caption" id="lb-caption"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+let status = {};  // mes → {found, ext, size}
+let currentYear = null;
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+
+async function init() {
+  const years = await fetchJSON('/api/years');
+  const sel = document.getElementById('year-sel');
+  sel.innerHTML = '';
+  if (!years.length) years.push(new Date().getFullYear().toString());
+  years.forEach(y => {
+    const o = document.createElement('option');
+    o.value = o.textContent = y;
+    sel.appendChild(o);
+  });
+  currentYear = years[0];
+  await loadStatus();
+  renderAll();
+}
+
+async function onYearChange() {
+  currentYear = document.getElementById('year-sel').value;
+  await loadStatus();
+  renderAll();
+  if (document.getElementById('page-downloads').classList.contains('active')) loadDownloads();
+}
+
+async function loadStatus() {
+  try {
+    status = await fetchJSON(`/api/status/${currentYear}`);
+  } catch {
+    status = {};
+    MESES.forEach(m => { status[m] = { found: false }; });
+  }
+  updateSidebar();
+}
+
+function updateSidebar() {
+  const done = MESES.filter(m => status[m]?.found).length;
+  document.getElementById('sb-label').textContent = `${done} / 12 fotos`;
+  document.getElementById('sb-bar').style.width = `${(done/12)*100}%`;
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────
+
+function goTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  if (page === 'gallery')   renderGallery();
+  if (page === 'upload')    renderUpload();
+  if (page === 'downloads') loadDownloads();
+}
+
+function renderAll() {
+  const activePage = document.querySelector('.page.active')?.id.replace('page-','');
+  if (activePage === 'gallery')  renderGallery();
+  if (activePage === 'upload')   renderUpload();
+}
+
+// ── GALLERY ───────────────────────────────────────────────────────────────
+
+function renderGallery() {
+  const grid = document.getElementById('gallery-grid');
+  grid.innerHTML = '';
+  MESES.forEach(mes => {
+    const info = status[mes] || { found: false };
+    const card = document.createElement('div');
+    card.className = 'm-card';
+    const thumb = info.found
+      ? `<img src="/api/thumbnail/${currentYear}/${mes}?t=${Date.now()}"
+              alt="${mes}" onload="this.style.display='block';this.previousElementSibling.style.display='none'"
+              onclick="openLightbox(this.src,'${mes}')" style="cursor:zoom-in" />`
+      : '';
+    card.innerHTML = `
+      <div class="m-thumb">
+        <div class="ph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>Sin foto</span>
+        </div>
+        ${thumb}
+      </div>
+      <div class="m-body">
+        <div class="m-name">${mes}
+          <span class="badge ${info.found ? 'badge-ok':'badge-miss'}">${info.found ? '✓':'Falta'}</span>
+        </div>
+        <div class="m-meta">${info.found ? `${info.ext} · ${fmtSize(info.size)}` : '—'}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────
+
+function renderUpload() {
+  const grid = document.getElementById('upload-grid');
+  grid.innerHTML = '';
+  MESES.forEach(mes => {
+    const info = status[mes] || { found: false };
+    const card = document.createElement('div');
+    card.className = 'm-card';
+    card.id = `ucard-${mes}`;
+    card.innerHTML = `
+      <div class="m-thumb" id="uthumb-${mes}" onclick="triggerInput('${mes}')">
+        <div class="ph" id="uph-${mes}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>Click o arrastra</span>
+        </div>
+        ${info.found ? `<img id="uimg-${mes}" src="/api/thumbnail/${currentYear}/${mes}?t=${Date.now()}" alt="${mes}"
+            onload="this.style.display='block';document.getElementById('uph-${mes}').style.display='none'" />` : `<img id="uimg-${mes}" alt="${mes}" />`}
+        <div class="drop-overlay">Suelta aquí</div>
+      </div>
+      <div class="m-body">
+        <div class="m-name">${mes}
+          <span class="badge ${info.found ? 'badge-ok':'badge-miss'}" id="ubadge-${mes}">${info.found ? '✓ Subida':'Falta'}</span>
+        </div>
+        <div class="m-meta" id="umeta-${mes}">${info.found ? `${info.ext} · ${fmtSize(info.size)}` : '—'}</div>
+        <div class="m-actions">
+          <button class="btn btn-primary btn-sm" onclick="triggerInput('${mes}')">Seleccionar</button>
+          ${info.found ? `<button class="btn btn-danger btn-sm" id="udel-${mes}" onclick="deletePhoto('${mes}')">Eliminar</button>` : `<span id="udel-${mes}"></span>`}
+          <div class="spinner" id="uspin-${mes}"></div>
+        </div>
+      </div>
+      <input type="file" id="uinput-${mes}" accept=".jpg,.jpeg,.png,.tif,.tiff,.webp"
+             onchange="uploadFile('${mes}', this.files[0])" />`;
+
+    // drag & drop
+    const thumb = card.querySelector('.m-thumb');
+    thumb.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
+    thumb.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    thumb.addEventListener('drop', e => {
+      e.preventDefault(); card.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) uploadFile(mes, f);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function triggerInput(mes) {
+  document.getElementById(`uinput-${mes}`).click();
+}
+
+async function uploadFile(mes, file) {
+  if (!file) return;
+  const spin = document.getElementById(`uspin-${mes}`);
+  spin.style.display = 'block';
+
+  // preview local
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(`uimg-${mes}`);
+    img.src = e.target.result;
+    img.style.display = 'block';
+    const ph = document.getElementById(`uph-${mes}`);
+    if (ph) ph.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const data = await fetchJSON(`/api/upload/${currentYear}/${mes}`, { method:'POST', body: fd });
+    if (data.success) {
+      status[mes] = { found: true, ext: data.ext, size: data.size };
+      setBadge(mes, true, data.ext, data.size);
+      showToast(`${mes} guardada`, 'ok');
+      updateSidebar();
+    } else {
+      showToast(`Error: ${data.error}`, 'err');
+    }
+  } catch(e) { showToast('Error de red', 'err'); }
+  spin.style.display = 'none';
+}
+
+async function deletePhoto(mes) {
+  if (!confirm(`¿Eliminar la foto de ${mes}?`)) return;
+  const data = await fetchJSON(`/api/delete/${currentYear}/${mes}`, { method:'DELETE' });
+  if (data.success) {
+    status[mes] = { found: false };
+    setBadge(mes, false);
+    const img = document.getElementById(`uimg-${mes}`);
+    img.src = ''; img.style.display = 'none';
+    const ph = document.getElementById(`uph-${mes}`);
+    if (ph) ph.style.display = 'flex';
+    const del = document.getElementById(`udel-${mes}`);
+    if (del) del.remove();
+    document.getElementById(`umeta-${mes}`).textContent = '—';
+    updateSidebar();
+    showToast(`${mes} eliminada`, 'ok');
+  }
+}
+
+function setBadge(mes, ok, ext='', size=0) {
+  const b = document.getElementById(`ubadge-${mes}`);
+  if (b) { b.className = `badge ${ok ? 'badge-ok':'badge-miss'}`; b.textContent = ok ? '✓ Subida':'Falta'; }
+  const m = document.getElementById(`umeta-${mes}`);
+  if (m) m.textContent = ok ? `${ext} · ${fmtSize(size)}` : '—';
+}
+
+// ── GENERATE ──────────────────────────────────────────────────────────────
+
+async function runGenerate() {
+  const btn = document.getElementById('gen-btn');
+  const spin = document.getElementById('gen-spinner');
+  const out  = document.getElementById('gen-output');
+  const stat = document.getElementById('gen-status');
+  btn.disabled = true;
+  spin.style.display = 'block';
+  out.style.display = 'none';
+  stat.textContent = `Generando calendarios ${currentYear}… puede tardar varios minutos.`;
+  try {
+    const data = await fetchJSON(`/api/generate/${currentYear}`, { method:'POST' });
+    out.style.display = 'block';
+    if (data.success) {
+      stat.textContent = '✅ Calendarios generados correctamente.';
+      out.textContent = data.output;
+      showToast('PDFs generados', 'ok');
+    } else {
+      stat.textContent = '❌ Error al generar.';
+      out.textContent = (data.error || '') + '\n' + (data.output || '');
+      showToast('Error al generar', 'err');
+    }
+  } catch(e) {
+    stat.textContent = '❌ Error de conexión.';
+    out.style.display = 'block';
+    out.textContent = String(e);
+  }
+  btn.disabled = false;
+  spin.style.display = 'none';
+}
+
+// ── DOWNLOADS ─────────────────────────────────────────────────────────────
+
+async function loadDownloads() {
+  const list = document.getElementById('pdf-list');
+  list.innerHTML = '<p style="color:var(--muted);font-size:0.9rem">Cargando…</p>';
+  try {
+    const pdfs = await fetchJSON(`/api/calendars/${currentYear}`);
+    if (!pdfs.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:0.9rem">No hay PDFs generados para este año. Ve a «Generar PDFs».</p>';
+      return;
+    }
+    list.innerHTML = '';
+    pdfs.forEach(({ mes, size, mtime }) => {
+      const row = document.createElement('div');
+      row.className = 'pdf-row';
+      const d = new Date(mtime * 1000);
+      row.innerHTML = `
+        <div class="pdf-icon">📄</div>
+        <div class="pdf-info">
+          <div class="pdf-name">${mes} ${currentYear}.pdf</div>
+          <div class="pdf-size">${fmtSize(size)} · ${d.toLocaleDateString('es-ES', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="/calendarios_pdf/${mes}.pdf" download="${mes}_${currentYear}.pdf">Descargar</a>`;
+      list.appendChild(row);
+    });
+  } catch(e) {
+    list.innerHTML = `<p style="color:var(--red)">Error cargando PDFs: ${e}</p>`;
+  }
+}
+
+// ── LIGHTBOX ──────────────────────────────────────────────────────────────
+
+function openLightbox(src, caption) {
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lb-caption').textContent = `${caption} ${currentYear}`;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ── YEAR PROMPT ───────────────────────────────────────────────────────────
+
+async function promptNewYear() {
+  const y = prompt('Introduce el año (ej. 2027):');
+  if (!y || !/^\d{4}$/.test(y)) return;
+  const sel = document.getElementById('year-sel');
+  if ([...sel.options].some(o => o.value === y)) { sel.value = y; onYearChange(); return; }
+  const opt = document.createElement('option');
+  opt.value = opt.textContent = y;
+  sel.insertBefore(opt, sel.firstChild);
+  sel.value = y;
+  onYearChange();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+
+async function fetchJSON(url, opts = {}) {
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${(bytes/1024).toFixed(0)} KB`;
+  return `${(bytes/(1024*1024)).toFixed(1)} MB`;
+}
+
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 3000);
+}
+
+// ── START ─────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
