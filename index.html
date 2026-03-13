@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendario GdeP — Subir Fotos</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f2f5;
+      color: #222;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 600; flex: 1; }
+
+    .year-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .year-selector label { font-size: 0.9rem; opacity: 0.8; }
+
+    .year-selector input {
+      width: 90px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      text-align: center;
+    }
+
+    .btn {
+      padding: 8px 18px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary   { background: #4f8ef7; color: #fff; }
+    .btn-generate  { background: #27ae60; color: #fff; }
+    .btn-danger    { background: #e74c3c; color: #fff; padding: 5px 12px; font-size: 0.8rem; }
+
+    main {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 20px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .progress-bar-wrap {
+      background: #dde1e9;
+      border-radius: 8px;
+      height: 8px;
+      flex: 1;
+      min-width: 120px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #27ae60;
+      border-radius: 8px;
+      transition: width 0.4s;
+    }
+    .progress-label { font-size: 0.85rem; color: #555; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+
+    .card-preview {
+      height: 160px;
+      background: #e8eaed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+    .card-preview img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    .card-preview .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: #aaa;
+    }
+    .card-preview .placeholder svg { width: 40px; height: 40px; }
+    .card-preview .placeholder span { font-size: 0.8rem; }
+
+    /* Drag-over state */
+    .card.drag-over .card-preview { background: #d0e8ff; outline: 2px dashed #4f8ef7; }
+
+    .card-body {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-ok   { background: #d4f5e0; color: #1a7a40; }
+    .badge-miss { background: #fde8e8; color: #a52828; }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .upload-input { display: none; }
+
+    .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid #ccc;
+      border-top-color: #4f8ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #333; color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      max-width: 320px;
+      z-index: 100;
+    }
+    #toast.show { opacity: 1; }
+    #toast.ok  { background: #27ae60; }
+    #toast.err { background: #e74c3c; }
+
+    /* Generate modal */
+    #modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    #modal-overlay.show { display: flex; }
+    #modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 32px;
+      max-width: 480px;
+      width: 90%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    #modal h2 { font-size: 1.1rem; }
+    #modal pre {
+      background: #1a1a2e;
+      color: #a8f0c0;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    #modal .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Calendario GdeP — Subir Fotos</h1>
+  <div class="year-selector">
+    <label for="year-input">Año:</label>
+    <input type="number" id="year-input" value="2026" min="2020" max="2099" />
+    <button class="btn btn-primary" onclick="loadStatus()">Cargar</button>
+  </div>
+  <button class="btn btn-generate" onclick="generateCalendars()">⚙ Generar PDFs</button>
+</header>
+
+<main>
+  <div class="toolbar">
+    <span class="progress-label" id="progress-label">— de 12 fotos</span>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+    </div>
+  </div>
+  <div class="grid" id="grid"></div>
+</main>
+
+<div id="toast"></div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <h2 id="modal-title">Generando calendarios…</h2>
+    <pre id="modal-output">Por favor espera.</pre>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  let status = {};
+
+  function getYear() { return parseInt(document.getElementById('year-input').value); }
+
+  /* ── Status ── */
+  async function loadStatus() {
+    const year = getYear();
+    try {
+      const r = await fetch(`/api/status/${year}`);
+      status = await r.json();
+    } catch {
+      status = {};
+      MESES.forEach(m => status[m] = false);
+    }
+    renderGrid();
+    updateProgress();
+  }
+
+  /* ── Grid ── */
+  function renderGrid() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    MESES.forEach((mes, i) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = `card-${mes}`;
+
+      card.innerHTML = `
+        <div class="card-preview" id="preview-${mes}" onclick="triggerUpload('${mes}')">
+          <img id="img-${mes}" alt="${mes}" />
+          <div class="placeholder" id="placeholder-${mes}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span>Click o arrastra aquí</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-title">
+            ${mes}
+            <span class="badge ${status[mes] ? 'badge-ok' : 'badge-miss'}" id="badge-${mes}">
+              ${status[mes] ? '✓ Subida' : 'Falta'}
+            </span>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-primary" onclick="triggerUpload('${mes}')">Seleccionar foto</button>
+            <div class="spinner" id="spinner-${mes}"></div>
+            ${status[mes] ? `<button class="btn btn-danger" onclick="removePhoto('${mes}')">✕</button>` : ''}
+          </div>
+        </div>
+        <input type="file" class="upload-input" id="input-${mes}"
+               accept=".jpg,.jpeg,.png,.tif,.tiff,.webp"
+               onchange="uploadFile('${mes}', this.files[0])" />
+      `;
+
+      // Drag & drop
+      const preview = card.querySelector('.card-preview');
+      preview.addEventListener('dragover', e => { e.preventDefault(); card.classList.add('drag-over'); });
+      preview.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      preview.addEventListener('drop', e => {
+        e.preventDefault();
+        card.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) uploadFile(mes, file);
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  /* ── Upload ── */
+  function triggerUpload(mes) {
+    document.getElementById(`input-${mes}`).click();
+  }
+
+  async function uploadFile(mes, file) {
+    if (!file) return;
+    const year = getYear();
+    const spinner = document.getElementById(`spinner-${mes}`);
+    spinner.style.display = 'block';
+
+    // Local preview
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById(`img-${mes}`);
+      img.src = e.target.result;
+      img.style.display = 'block';
+      document.getElementById(`placeholder-${mes}`).style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch(`/api/upload/${year}/${mes}`, { method: 'POST', body: fd });
+      const data = await r.json();
+      if (data.success) {
+        status[mes] = true;
+        setBadge(mes, true);
+        showToast(`${mes} subida correctamente`, 'ok');
+      } else {
+        showToast(`Error: ${data.error}`, 'err');
+      }
+    } catch(e) {
+      showToast('Error de conexión', 'err');
+    }
+    spinner.style.display = 'none';
+    updateProgress();
+  }
+
+  async function removePhoto(mes) {
+    // Just toggle state locally (server keeps file until overwritten)
+    status[mes] = false;
+    setBadge(mes, false);
+    document.getElementById(`img-${mes}`).style.display = 'none';
+    document.getElementById(`placeholder-${mes}`).style.display = 'flex';
+    updateProgress();
+    showToast(`${mes} marcada como pendiente`, '');
+  }
+
+  /* ── Badge ── */
+  function setBadge(mes, ok) {
+    const b = document.getElementById(`badge-${mes}`);
+    b.className = `badge ${ok ? 'badge-ok' : 'badge-miss'}`;
+    b.textContent = ok ? '✓ Subida' : 'Falta';
+  }
+
+  /* ── Progress ── */
+  function updateProgress() {
+    const done = MESES.filter(m => status[m]).length;
+    document.getElementById('progress-label').textContent = `${done} de 12 fotos`;
+    document.getElementById('progress-bar').style.width = `${(done / 12) * 100}%`;
+  }
+
+  /* ── Generate ── */
+  async function generateCalendars() {
+    const year = getYear();
+    document.getElementById('modal-title').textContent = `Generando calendarios ${year}…`;
+    document.getElementById('modal-output').textContent = 'Por favor espera, esto puede tardar unos minutos.';
+    document.getElementById('modal-overlay').classList.add('show');
+
+    try {
+      const r = await fetch(`/api/generate/${year}`, { method: 'POST' });
+      const data = await r.json();
+      if (data.success) {
+        document.getElementById('modal-title').textContent = '✅ Calendarios generados';
+        document.getElementById('modal-output').textContent = data.output || 'Completado.';
+      } else {
+        document.getElementById('modal-title').textContent = '❌ Error al generar';
+        document.getElementById('modal-output').textContent = data.error || 'Error desconocido.';
+      }
+    } catch(e) {
+      document.getElementById('modal-title').textContent = '❌ Error de conexión';
+      document.getElementById('modal-output').textContent = String(e);
+    }
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('show');
+  }
+
+  /* ── Toast ── */
+  let toastTimer;
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `show ${type}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = '', 3000);
+  }
+
+  /* ── Init ── */
+  loadStatus();
+</script>
+</body>
+</html>
