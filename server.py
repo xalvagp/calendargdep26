@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory, send_file
 from PIL import Image
 from io import BytesIO
 import os
+import json
 import subprocess
 
 app = Flask(__name__, static_folder='.')
@@ -10,6 +11,24 @@ MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp']
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200 MB
+
+DEFAULT_SPECIAL_DAYS = [
+    {'month': 6,  'day': 24, 'title': 'Marta',      'image': 'mdp.jpg'},
+    {'month': 5,  'day': 26, 'title': 'Salva',       'image': 'sgp.jpg'},
+    {'month': 2,  'day': 10, 'title': 'Naná',        'image': 'agp.jpg'},
+    {'month': 11, 'day': 23, 'title': 'Clara',       'image': 'cgp.jpg'},
+    {'month': 8,  'day': 19, 'title': 'Malou',       'image': 'malou.jpg'},
+    {'month': 12, 'day': 24, 'title': 'Noche buena', 'image': 'noche_buena.jpg'},
+    {'month': 7,  'day': 14, 'title': 'GdeP',        'image': 'gdep.jpg'},
+    {'month': 1,  'day': 1,  'title': 'Año Nuevo',   'image': 'new_year.jpg'},
+]
+
+DEFAULT_TITLES = [
+    'Churros con la abuela', 'Tarraco', 'Parada del 61 Diego de Leon',
+    'Altafulla, Tarraco', 'Giovanni Marongiu City Museum, Sardegna',
+    'Las Merindades', 'Granada', 'Nuraghe Losa, Sardegna',
+    'La Araña', 'Altafulla, Tarraco', 'Madrid', 'Año nuevo 26 Le Chinouse',
+]
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -35,6 +54,10 @@ def landing():
 @app.route('/calendarios_pdf/<path:filename>')
 def download_pdf(filename):
     return send_from_directory('calendarios_pdf', filename)
+
+@app.route('/imagenes_special_days/<path:filename>')
+def special_day_image(filename):
+    return send_from_directory('imagenes_special_days', filename)
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -130,6 +153,83 @@ def api_delete(year, mes):
             os.remove(p)
             deleted = True
     return jsonify({'success': deleted})
+
+
+@app.route('/api/special_days/<int:year>', methods=['GET'])
+def get_special_days(year):
+    if year == 0:
+        return jsonify(DEFAULT_SPECIAL_DAYS)
+    path = os.path.join('pics', str(year), 'special_days.json')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return jsonify(json.load(f))
+    return jsonify(DEFAULT_SPECIAL_DAYS)
+
+
+@app.route('/api/special_days/<int:year>', methods=['POST'])
+def save_special_days(year):
+    data = request.get_json()
+    if not isinstance(data, list):
+        return jsonify({'error': 'Se esperaba una lista'}), 400
+    pics_dir = os.path.join('pics', str(year))
+    os.makedirs(pics_dir, exist_ok=True)
+    with open(os.path.join(pics_dir, 'special_days.json'), 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return jsonify({'success': True})
+
+
+@app.route('/api/titles/<int:year>', methods=['GET'])
+def get_titles(year):
+    if year == 0:
+        return jsonify(DEFAULT_TITLES)
+    path = os.path.join('pics', str(year), 'titles.txt')
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                titles = [l.strip() for l in f if l.strip()]
+            if len(titles) == 12:
+                return jsonify(titles)
+        except Exception:
+            pass
+    return jsonify(DEFAULT_TITLES)
+
+
+@app.route('/api/titles/<int:year>', methods=['POST'])
+def save_titles(year):
+    data = request.get_json()
+    if not isinstance(data, list) or len(data) != 12:
+        return jsonify({'error': 'Se esperan exactamente 12 títulos'}), 400
+    pics_dir = os.path.join('pics', str(year))
+    os.makedirs(pics_dir, exist_ok=True)
+    with open(os.path.join(pics_dir, 'titles.txt'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(data))
+    return jsonify({'success': True})
+
+
+@app.route('/api/special_day_images', methods=['GET'])
+def list_special_day_images():
+    d = 'imagenes_special_days'
+    exts = {'.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp',
+            '.JPG', '.JPEG', '.PNG', '.TIF', '.TIFF', '.WEBP'}
+    imgs = sorted(f for f in os.listdir(d)
+                  if os.path.isfile(os.path.join(d, f)) and os.path.splitext(f)[1] in exts)
+    return jsonify(imgs)
+
+
+@app.route('/api/special_day_images', methods=['POST'])
+def upload_special_day_image():
+    if 'file' not in request.files:
+        return jsonify({'error': 'Sin archivo'}), 400
+    file = request.files['file']
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({'error': f'Formato no soportado: {ext}'}), 400
+    # Sanitize filename: only keep alphanumeric, dash, underscore, dot
+    import re
+    safe = re.sub(r'[^\w.\-]', '_', file.filename)
+    save_path = os.path.join('imagenes_special_days', safe)
+    file.save(save_path)
+    return jsonify({'success': True, 'filename': safe})
 
 
 @app.route('/api/generate/<int:year>', methods=['POST'])

@@ -225,6 +225,64 @@
     .page { display: none; }
     .page.active { display: block; }
 
+    /* ── TÍTULOS ── */
+    .titles-form { max-width: 640px; display: flex; flex-direction: column; gap: 10px; }
+    .title-row {
+      display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 12px;
+      background: var(--card); border-radius: 8px; padding: 10px 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .title-row label { font-weight: 600; font-size: 0.9rem; color: var(--muted); }
+    .title-row input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 0.9rem; width: 100%;
+      transition: border-color .2s;
+    }
+    .title-row input:focus { outline: none; border-color: var(--accent); }
+
+    /* ── DÍAS ESPECIALES ── */
+    .sd-toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+    .sd-table { width: 100%; border-collapse: collapse; background: var(--card);
+                border-radius: var(--radius); overflow: hidden;
+                box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+    .sd-table th {
+      background: var(--dark); color: #fff; padding: 10px 12px;
+      text-align: left; font-size: 0.82rem; font-weight: 600; letter-spacing: .04em;
+    }
+    .sd-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .sd-table tr:last-child td { border-bottom: none; }
+    .sd-table tr:hover td { background: var(--light); }
+    .sd-table select, .sd-table input[type=text], .sd-table input[type=number] {
+      border: 1px solid var(--border); border-radius: 5px;
+      padding: 4px 7px; font-size: 0.85rem; width: 100%;
+    }
+    .sd-table select:focus, .sd-table input:focus { outline: none; border-color: var(--accent); }
+    .sd-img-cell { display: flex; align-items: center; gap: 8px; }
+    .sd-img-thumb {
+      width: 36px; height: 36px; border-radius: 4px; object-fit: cover;
+      border: 1px solid var(--border); background: var(--light);
+      flex-shrink: 0;
+    }
+    .sd-img-cell select { flex: 1; }
+    .sd-upload-btn {
+      padding: 3px 8px; background: var(--light); border: 1px solid var(--border);
+      border-radius: 5px; font-size: 0.75rem; cursor: pointer; white-space: nowrap;
+    }
+    .sd-upload-btn:hover { background: #e2e6ea; }
+
+    /* ── FORM SAVE BAR ── */
+    .save-bar {
+      position: sticky; bottom: 0; background: #fff;
+      border-top: 1px solid var(--border);
+      padding: 12px 0; display: flex; gap: 10px; align-items: center;
+      margin-top: 20px;
+    }
+    .unsaved-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #f39c12;
+      display: none;
+    }
+    .unsaved-dot.show { display: block; }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 640px) {
       aside { width: 56px; }
@@ -257,6 +315,12 @@
     <div class="nav-section">Gestionar</div>
     <div class="nav-item" data-page="upload" onclick="goTo('upload')">
       <span class="icon">⬆️</span><span>Subir fotos</span>
+    </div>
+    <div class="nav-item" data-page="titles" onclick="goTo('titles')">
+      <span class="icon">✏️</span><span>Títulos de fotos</span>
+    </div>
+    <div class="nav-item" data-page="specdays" onclick="goTo('specdays')">
+      <span class="icon">🎂</span><span>Días especiales</span>
     </div>
     <div class="nav-item" data-page="generate" onclick="goTo('generate')">
       <span class="icon">⚙️</span><span>Generar PDFs</span>
@@ -292,6 +356,53 @@
         <p>Arrastra o selecciona una foto para cada mes. Formatos: JPG, TIF, PNG, WebP (máx. 200 MB).</p>
       </div>
       <div class="grid-12" id="upload-grid"></div>
+    </div>
+
+    <!-- TITLES -->
+    <div class="page" id="page-titles">
+      <div class="page-header">
+        <h2>Títulos de las fotos</h2>
+        <p>Texto que aparece en el pie de cada foto en el calendario.</p>
+      </div>
+      <div class="titles-form" id="titles-form"></div>
+      <div class="save-bar">
+        <div class="unsaved-dot" id="titles-dot"></div>
+        <button class="btn btn-success" onclick="saveTitles()">Guardar títulos</button>
+        <button class="btn btn-ghost" onclick="loadTitles()">Descartar cambios</button>
+        <button class="btn btn-ghost" onclick="resetTitles()">Restablecer defaults</button>
+      </div>
+    </div>
+
+    <!-- SPECIAL DAYS -->
+    <div class="page" id="page-specdays">
+      <div class="page-header">
+        <h2>Días especiales</h2>
+        <p>Se copian de los defaults al abrir un año nuevo. Puedes editarlos por año.</p>
+      </div>
+      <div class="sd-toolbar">
+        <button class="btn btn-primary" onclick="addSpecDay()">+ Añadir día</button>
+        <button class="btn btn-ghost" onclick="loadSpecDays()">Descartar cambios</button>
+        <button class="btn btn-ghost" onclick="resetSpecDays()">Restablecer defaults</button>
+        <label style="font-size:.85rem;color:var(--muted);margin-left:8px">Copiar de año:</label>
+        <select id="sd-copy-year" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem"></select>
+        <button class="btn btn-ghost" onclick="copySpecDaysFromYear()">Copiar</button>
+        <input type="file" id="sd-img-upload-input" accept=".jpg,.jpeg,.png,.tif,.tiff,.webp"
+               onchange="uploadSpecDayImage(this.files[0])" style="display:none" />
+      </div>
+      <div style="overflow-x:auto">
+        <table class="sd-table">
+          <thead>
+            <tr>
+              <th>Mes</th><th>Día</th><th>Título</th><th style="min-width:260px">Imagen</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="sd-tbody"></tbody>
+        </table>
+      </div>
+      <div class="save-bar">
+        <div class="unsaved-dot" id="sd-dot"></div>
+        <button class="btn btn-success" onclick="saveSpecDays()">Guardar días especiales</button>
+      </div>
     </div>
 
     <!-- GENERATE -->
@@ -392,6 +503,8 @@ function goTo(page) {
   document.querySelector(`[data-page="${page}"]`).classList.add('active');
   if (page === 'gallery')   renderGallery();
   if (page === 'upload')    renderUpload();
+  if (page === 'titles')    loadTitles();
+  if (page === 'specdays')  loadSpecDays();
   if (page === 'downloads') loadDownloads();
 }
 
@@ -637,12 +750,193 @@ async function promptNewYear() {
   onYearChange();
 }
 
+// ── TITLES ────────────────────────────────────────────────────────────────
+
+let titlesData = [];
+let titlesDefault = [];
+
+async function loadTitles() {
+  titlesData = await fetchJSON(`/api/titles/${currentYear}`);
+  titlesDefault = [...titlesData];
+  renderTitles();
+  document.getElementById('titles-dot').classList.remove('show');
+}
+
+function renderTitles() {
+  const form = document.getElementById('titles-form');
+  form.innerHTML = '';
+  MESES.forEach((mes, i) => {
+    const row = document.createElement('div');
+    row.className = 'title-row';
+    row.innerHTML = `<label>${mes}</label>
+      <input type="text" value="${esc(titlesData[i] || '')}"
+             oninput="titlesData[${i}]=this.value; document.getElementById('titles-dot').classList.add('show')" />`;
+    form.appendChild(row);
+  });
+}
+
+async function saveTitles() {
+  const inputs = document.querySelectorAll('#titles-form input');
+  titlesData = [...inputs].map(i => i.value.trim());
+  const data = await fetchJSON(`/api/titles/${currentYear}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(titlesData)
+  });
+  if (data.success) {
+    showToast('Títulos guardados', 'ok');
+    document.getElementById('titles-dot').classList.remove('show');
+  } else {
+    showToast(`Error: ${data.error}`, 'err');
+  }
+}
+
+function resetTitles() {
+  if (!confirm('¿Restablecer los títulos por defecto?')) return;
+  fetchJSON('/api/titles/0').then(d => {  // year=0 → devuelve defaults
+    titlesData = d;
+    renderTitles();
+    document.getElementById('titles-dot').classList.add('show');
+  });
+}
+
+// ── SPECIAL DAYS ──────────────────────────────────────────────────────────
+
+let specDays = [];
+let sdImages = [];
+
+async function loadSpecDays() {
+  [specDays, sdImages] = await Promise.all([
+    fetchJSON(`/api/special_days/${currentYear}`),
+    fetchJSON('/api/special_day_images'),
+  ]);
+  renderSpecDays();
+  document.getElementById('sd-dot').classList.remove('show');
+  // populate copy-from selector
+  const sel = document.getElementById('sd-copy-year');
+  const years = await fetchJSON('/api/years');
+  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+}
+
+function renderSpecDays() {
+  const tbody = document.getElementById('sd-tbody');
+  tbody.innerHTML = '';
+  specDays.forEach((sd, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <select onchange="sdUpdate(${idx},'month',+this.value)">
+          ${MESES.map((m,i)=>`<option value="${i+1}" ${sd.month===i+1?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="number" min="1" max="31" value="${sd.day}" style="width:58px"
+                 onchange="sdUpdate(${idx},'day',+this.value)" /></td>
+      <td><input type="text" value="${esc(sd.title)}"
+                 oninput="sdUpdate(${idx},'title',this.value)" /></td>
+      <td>
+        <div class="sd-img-cell">
+          <img class="sd-img-thumb" id="sdthumb-${idx}"
+               src="${sd.image ? `/imagenes_special_days/${sd.image}` : ''}"
+               onerror="this.style.display='none'" />
+          <select onchange="sdUpdate(${idx},'image',this.value); refreshThumb(${idx},this.value)">
+            <option value="">— sin imagen —</option>
+            ${sdImages.map(f=>`<option value="${f}" ${sd.image===f?'selected':''}>${f}</option>`).join('')}
+          </select>
+          <span class="sd-upload-btn" onclick="sdUploadTrigger(${idx})">⬆ Subir</span>
+        </div>
+      </td>
+      <td><button class="btn btn-danger btn-sm" onclick="sdRemove(${idx})">✕</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function sdUpdate(idx, key, val) {
+  specDays[idx][key] = val;
+  document.getElementById('sd-dot').classList.add('show');
+}
+
+function refreshThumb(idx, filename) {
+  const img = document.getElementById(`sdthumb-${idx}`);
+  if (filename) { img.src = `/imagenes_special_days/${filename}`; img.style.display=''; }
+  else img.style.display = 'none';
+}
+
+function addSpecDay() {
+  specDays.push({ month: 1, day: 1, title: '', image: '' });
+  renderSpecDays();
+  document.getElementById('sd-dot').classList.add('show');
+}
+
+function sdRemove(idx) {
+  specDays.splice(idx, 1);
+  renderSpecDays();
+  document.getElementById('sd-dot').classList.add('show');
+}
+
+async function saveSpecDays() {
+  const data = await fetchJSON(`/api/special_days/${currentYear}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(specDays)
+  });
+  if (data.success) {
+    showToast('Días especiales guardados', 'ok');
+    document.getElementById('sd-dot').classList.remove('show');
+  } else {
+    showToast(`Error: ${data.error}`, 'err');
+  }
+}
+
+function resetSpecDays() {
+  if (!confirm('¿Restablecer los días especiales por defecto?')) return;
+  fetchJSON('/api/special_days/0').then(d => {
+    specDays = d;
+    renderSpecDays();
+    document.getElementById('sd-dot').classList.add('show');
+  });
+}
+
+async function copySpecDaysFromYear() {
+  const y = document.getElementById('sd-copy-year').value;
+  if (!y) return;
+  specDays = await fetchJSON(`/api/special_days/${y}`);
+  renderSpecDays();
+  document.getElementById('sd-dot').classList.add('show');
+  showToast(`Copiados de ${y}`, 'ok');
+}
+
+let sdUploadTarget = null;
+function sdUploadTrigger(idx) {
+  sdUploadTarget = idx;
+  document.getElementById('sd-img-upload-input').click();
+}
+
+async function uploadSpecDayImage(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const data = await fetchJSON('/api/special_day_images', { method: 'POST', body: fd });
+  if (data.success) {
+    sdImages = await fetchJSON('/api/special_day_images');
+    if (sdUploadTarget !== null) {
+      specDays[sdUploadTarget].image = data.filename;
+    }
+    renderSpecDays();
+    showToast(`${data.filename} subida`, 'ok');
+    document.getElementById('sd-dot').classList.add('show');
+  } else {
+    showToast(`Error: ${data.error}`, 'err');
+  }
+}
+
 // ── UTILS ─────────────────────────────────────────────────────────────────
 
 async function fetchJSON(url, opts = {}) {
   const r = await fetch(url, opts);
   return r.json();
 }
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 function fmtSize(bytes) {
   if (!bytes) return '';

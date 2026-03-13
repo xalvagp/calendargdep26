@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 import calendar
 from datetime import datetime, date, timedelta
 import os
+import json
 import argparse
 
 # Spanish day and month names
@@ -25,6 +26,18 @@ SPECIAL_DAYS = [
     {'month': 1, 'day': 1, 'title': 'Año Nuevo', 'image': 'new_year.jpg'}
 ]
 
+def load_special_days(year):
+    """Load special days from year-specific special_days.json, or return defaults."""
+    path = os.path.join('pics', str(year), 'special_days.json')
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error reading special_days.json for {year}: {e}")
+            print("Using default special days instead")
+    return SPECIAL_DAYS
+
 def load_titles(year):
     """Load image titles from year-specific titles.txt file or return default titles."""
     titles_path = os.path.join('pics', str(year), 'titles.txt')
@@ -47,7 +60,9 @@ def load_titles(year):
     
     return DEFAULT_TITLES
 
-def create_calendar(year, month, titles):
+def create_calendar(year, month, titles, special_days=None):
+    if special_days is None:
+        special_days = SPECIAL_DAYS
     # A3 size in pixels at 300 DPI (297mm × 420mm) + 4mm bleed on all sides
     BLEED_MM = 4
     DPI = 300
@@ -229,7 +244,7 @@ def create_calendar(year, month, titles):
         for day_num, day in enumerate(week):
             if day != 0:
                 # Add background image for special days
-                for special_day in SPECIAL_DAYS:
+                for special_day in special_days:
                     if month == special_day['month'] and day == special_day['day']:
                         try:
                             # Try multiple extensions for special images too if not found
@@ -352,13 +367,15 @@ def main():
         print("\nOptionally, create a 'titles.txt' file in the same directory with 12 lines,")
         print("each line containing a title for the corresponding month's image.")
     
-    # Load titles for the year
+    # Load titles and special days for the year
     titles = load_titles(year)
-    
+    special_days = load_special_days(year)
+    print(f"Loaded {len(special_days)} special days for {year}")
+
     # Generate calendars for each month
     for month in range(1, 13):
         output_file = os.path.join(output_dir, f"{MESES[month-1]}.pdf")
-        calendar_image = create_calendar(year, month, titles)
+        calendar_image = create_calendar(year, month, titles, special_days)
         calendar_image.save(output_file)
         print(f"Generated calendar for {MESES[month-1]} {year}")
     
