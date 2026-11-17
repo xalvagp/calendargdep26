@@ -1,368 +1,539 @@
-from PIL import Image, ImageDraw, ImageFont
-import calendar
-from datetime import datetime, date, timedelta
-import os
+#!/usr/bin/env python3
+"""Genera calendarios A3 en PDF a partir de las fotos de pics/AAAA/.
+
+Sin dependencias externas (no necesita Pillow): escribe el PDF a mano y
+embebe la imagen tal cual cuando es JPEG (DCTDecode) o la decodifica cuando es
+TIFF RGB sin comprimir (FlateDecode).
+
+Uso:
+    python3 generate_calendars.py            # año actual
+    python3 generate_calendars.py 2027
+    python3 generate_calendars.py 2027 --out salida/
+    python3 generate_calendars.py 2027 --combined   # además, un PDF de 12 páginas
+
+Estructura esperada:
+    pics/AAAA/Enero.jpg|.tif|.png ... + titles.txt (12 líneas, opcional)
+    imagenes_special_days/*.jpg
+    especiales.json (opcional; si no está, se usa la lista de abajo)
+
+Salida: calendarios_pdf/<Mes>.pdf (y calendario-AAAA.pdf con --combined).
+"""
 import argparse
+import calendar
+import json
+import os
+import struct
+import sys
+import zlib
+from datetime import date, datetime
 
-# Spanish day and month names
-DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+MM = 72.0 / 25.4  # mm -> pt
 
-# Default titles for each month
-DEFAULT_TITLES = ['Churros con la abuela', 'Tarraco', 'Parada del 61 Diego de Leon', 'Altafulla, Tarraco', 
-                 'Giovanni Marongiu City Museum, Sardegna', 'Las Merindades', 'Granada', 'Nuraghe Losa, Sardegna', 
-                 'La Araña', 'Altafulla, Tarraco', 'Madrid', 'Año nuevo 26 Le Chinouse']
+# ---------------- geometria de pagina (mm, origen abajo-izquierda) ----------------
+PAGE_W, PAGE_H = 305.0, 428.0   # A3 297x420 + sangrado 4 mm
+BLEED = 4.0
+PHOTO_H = 214.0
+MARGIN_X = 7.0
+BOTTOM_MARGIN = 8.0
+WEEK_COL = 15.0
+MONTH_BAND = 24.0
+HDR_H = 12.0
 
-# Special days with their month, day, and description
+CONTENT_X0 = BLEED + MARGIN_X
+CONTENT_X1 = PAGE_W - BLEED - MARGIN_X
+CONTENT_W = CONTENT_X1 - CONTENT_X0
+DAY_W = CONTENT_W - WEEK_COL
+CELL_W = DAY_W / 7.0
+MONTH_BAND_Y0 = PHOTO_H - MONTH_BAND
+HDR_Y0 = MONTH_BAND_Y0 - HDR_H
+GRID_TOP = HDR_Y0
+GRID_BOTTOM = BLEED + BOTTOM_MARGIN
+
+DIAS = ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado', 'Domingo']
+MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+         'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+EXT = ('.jpg', '.jpeg', '.tif', '.tiff', '.png')
+
 SPECIAL_DAYS = [
-    {'month': 6, 'day': 24, 'title': 'Marta', 'image': 'mdp.jpg'},
+    {'month': 1, 'day': 1, 'title': 'A\u00f1o Nuevo', 'image': 'new_year.jpg'},
+    {'month': 2, 'day': 10, 'title': 'Nan\u00e1', 'image': 'agp.jpg'},
     {'month': 5, 'day': 26, 'title': 'Salva', 'image': 'sgp.jpg'},
-    {'month': 2, 'day': 10, 'title': 'Naná', 'image': 'agp.jpg'},
-    {'month': 11, 'day': 23, 'title': 'Clara', 'image': 'cgp.jpg'},
+    {'month': 6, 'day': 24, 'title': 'Marta', 'image': 'mdp.jpg'},
     {'month': 8, 'day': 19, 'title': 'Malou', 'image': 'malou.jpg'},
+    {'month': 11, 'day': 23, 'title': 'Clara', 'image': 'cgp.jpg'},
     {'month': 12, 'day': 24, 'title': 'Noche buena', 'image': 'noche_buena.jpg'},
-    {'month': 7, 'day': 14, 'title': 'GdeP', 'image': 'gdep.jpg'},
-    {'month': 1, 'day': 1, 'title': 'Año Nuevo', 'image': 'new_year.jpg'}
 ]
 
-def load_titles(year):
-    """Load image titles from year-specific titles.txt file or return default titles."""
-    titles_path = os.path.join('pics', str(year), 'titles.txt')
-    
-    if os.path.exists(titles_path):
-        try:
-            with open(titles_path, 'r', encoding='utf-8') as f:
-                # Read non-empty lines and strip whitespace
-                titles = [line.strip() for line in f if line.strip()]
-                
-                # Validate we have exactly 12 titles
-                if len(titles) == 12:
-                    return titles
-                else:
-                    print(f"Warning: titles.txt for {year} should contain exactly 12 titles (found {len(titles)})")
-                    print("Using default titles instead")
-        except Exception as e:
-            print(f"Error reading titles.txt for {year}: {e}")
-            print("Using default titles instead")
-    
-    return DEFAULT_TITLES
+# ---------------- metricas Helvetica (1/1000 em) ----------------
+_REG = {' ': 278, '!': 278, '"': 355, '#': 556, '$': 556, '%': 889, '&': 667, "'": 191,
+        '(': 333, ')': 333, '*': 389, '+': 584, ',': 278, '-': 333, '.': 278, '/': 278,
+        '0': 556, '1': 556, '2': 556, '3': 556, '4': 556, '5': 556, '6': 556, '7': 556,
+        '8': 556, '9': 556, ':': 278, ';': 278, '<': 584, '=': 584, '>': 584, '?': 556,
+        '@': 1015, 'A': 667, 'B': 667, 'C': 722, 'D': 722, 'E': 667, 'F': 611, 'G': 778,
+        'H': 722, 'I': 278, 'J': 500, 'K': 667, 'L': 556, 'M': 833, 'N': 722, 'O': 778,
+        'P': 667, 'Q': 778, 'R': 722, 'S': 667, 'T': 611, 'U': 722, 'V': 667, 'W': 944,
+        'X': 667, 'Y': 667, 'Z': 611, '[': 278, '\\': 278, ']': 278, '^': 469, '_': 556,
+        '`': 333, 'a': 556, 'b': 556, 'c': 500, 'd': 556, 'e': 556, 'f': 278, 'g': 556,
+        'h': 556, 'i': 222, 'j': 222, 'k': 500, 'l': 222, 'm': 833, 'n': 556, 'o': 556,
+        'p': 556, 'q': 556, 'r': 333, 's': 500, 't': 278, 'u': 556, 'v': 500, 'w': 722,
+        'x': 500, 'y': 500, 'z': 500, '{': 334, '|': 260, '}': 334, '~': 584}
+_BOLD = {' ': 278, '!': 333, '"': 474, '#': 556, '$': 556, '%': 889, '&': 722, "'": 238,
+         '(': 333, ')': 333, '*': 389, '+': 584, ',': 278, '-': 333, '.': 278, '/': 278,
+         '0': 556, '1': 556, '2': 556, '3': 556, '4': 556, '5': 556, '6': 556, '7': 556,
+         '8': 556, '9': 556, ':': 333, ';': 333, '<': 584, '=': 584, '>': 584, '?': 611,
+         '@': 975, 'A': 722, 'B': 722, 'C': 722, 'D': 722, 'E': 667, 'F': 611, 'G': 778,
+         'H': 722, 'I': 278, 'J': 556, 'K': 722, 'L': 611, 'M': 833, 'N': 722, 'O': 778,
+         'P': 667, 'Q': 778, 'R': 722, 'S': 667, 'T': 611, 'U': 722, 'V': 667, 'W': 944,
+         'X': 667, 'Y': 667, 'Z': 611, 'a': 556, 'b': 611, 'c': 556, 'd': 611, 'e': 556,
+         'f': 333, 'g': 611, 'h': 611, 'i': 278, 'j': 278, 'k': 556, 'l': 278, 'm': 889,
+         'n': 611, 'o': 611, 'p': 611, 'q': 611, 'r': 389, 's': 556, 't': 333, 'u': 611,
+         'v': 556, 'w': 778, 'x': 556, 'y': 556, 'z': 500}
+_ACCENT = {'\u00e1': 'a', '\u00e9': 'e', '\u00ed': 'i', '\u00f3': 'o', '\u00fa': 'u',
+           '\u00c1': 'A', '\u00c9': 'E', '\u00cd': 'I', '\u00d3': 'O', '\u00da': 'U',
+           '\u00f1': 'n', '\u00d1': 'N', '\u00fc': 'u', '\u00bf': '?', '\u00a1': '!'}
 
-def create_calendar(year, month, titles):
-    # A3 size in pixels at 300 DPI (297mm × 420mm) + 4mm bleed on all sides
-    BLEED_MM = 4
-    DPI = 300
-    MM_TO_INCH = 25.4
-    bleed_px = int(BLEED_MM * DPI / MM_TO_INCH)
-    
-    # New dimensions with bleed
-    width = int((297 + 2 * BLEED_MM) * DPI / MM_TO_INCH)  # 3508 + ~94 pixels (approx 3602)
-    height = int((420 + 2 * BLEED_MM) * DPI / MM_TO_INCH)  # 4961 + ~94 pixels (approx 5055)
-    
-    image = Image.new('RGB', (width, height), 'white')
-    draw = ImageDraw.Draw(image)
 
-    # Calculate dimensions in pixels (300 DPI) for the actual content area
-    content_width = int(297 * DPI / MM_TO_INCH) # Original A3 width (3508 pixels)
-    table_width = content_width
-    week_col_width = int(20 * DPI / MM_TO_INCH)  # Approximately 2 cm for week numbers column
-    calendar_width = table_width - week_col_width  # Width for the 7 day columns
-    cell_width = calendar_width // 7  # Width for each day column
-    
-    # Calculate positions (relative to the full bleed canvas)
-    start_x = bleed_px
-    week_col_x = start_x + calendar_width  # Position week numbers column at the end
-    first_row_height = int(16.6 * DPI / MM_TO_INCH)  # 1.66 cm converted to pixels at 300 DPI
-    cell_height = 340 # Fits larger image area
-    
-    # Load and process the main image
-    image_x = 0 # Start from the very edge of the bleed
-    image_y = 0 
-    # Photo will cover the top, left, and right bleed. 
-    # Its size will be width x (2480 + bleed_px)
-    target_photo_height = 2480 + bleed_px
-    month_image = load_and_resize_image(month, year, width, target_photo_height)
-    image.paste(month_image, (image_x, image_y))
-    
-    # The border around the main image has been removed as requested.
-    
-    # Draw the image title at the bottom right of the picture
-    image_title = titles[month-1]
-    print(f"Image title for month {month}: {image_title}")  # Debug print
-    title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 24)  # Smaller font for the title
-    title_width = draw.textlength(image_title, font=title_font)
-    title_height = 30  # Approximate height of text
-    title_x = width - title_width - bleed_px - 20  # Padding from bleed edge
-    title_y = month_image.height - 40  # Under the photo area
-    
-    # The background behind the text has been removed as requested. Image title drawn directly.
-    
-    # Draw the text
-    draw.text((title_x, title_y), image_title, font=title_font, fill='black')
-    
-    # Calculate positions for month name and days
-    header_y = image_y + month_image.height + 30
-    month_area_height = 100  # Height for month name area
-    
-    # Try to load fonts, fallback to default if not available
+def text_width(s, size_pt, bold=False):
+    tab = _BOLD if bold else _REG
+    total = 0
+    for ch in s:
+        k = tab.get(ch)
+        if k is None:
+            k = tab.get(_ACCENT.get(ch, 'n'), 556)
+        total += k
+    return total / 1000.0 * size_pt
+
+
+# ---------------- lectores de imagen ----------------
+def jpeg_info(path):
+    with open(path, 'rb') as f:
+        data = f.read()
+    if data[:2] != b'\xff\xd8':
+        raise ValueError('no es JPEG: %s' % path)
+    i, n = 2, len(data)
+    while i < n - 4:
+        if data[i] != 0xFF:
+            i += 1
+            continue
+        m = data[i + 1]
+        if m in (0xD8, 0x01):
+            i += 2
+            continue
+        if m == 0xDA:
+            break
+        seglen = struct.unpack('>H', data[i + 2:i + 4])[0]
+        if m in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            return struct.unpack('>HH', data[i + 5:i + 9])[::-1] + (data[i + 9], data[i + 4])
+        i += 2 + seglen
+    raise ValueError('sin SOF en %s' % path)
+
+
+def exif_orientation(path):
     try:
-        title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 120)
-        # 19pt at 300 DPI = (19 * 300/72) ≈ 79 pixels
-        day_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 79)
-        # 12pt at 300 DPI = (12 * 300/72) ≈ 50 pixels
-        week_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
-        # 11pt at 300 DPI = (11 * 300/72) ≈ 46 pixels
-        header_font = ImageFont.load_default()
-        number_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 60)  # Smaller font (was 100)
-    except:
-        title_font = ImageFont.load_default()
-        day_font = ImageFont.load_default()
-        week_font = ImageFont.load_default()
-        header_font = ImageFont.load_default()
-        number_font = ImageFont.load_default()
+        with open(path, 'rb') as f:
+            data = f.read(200000)
+        i = data.find(b'Exif\x00\x00')
+        if i < 0:
+            return 1
+        t = data[i + 6:]
+        end = '<' if t[:2] == b'II' else '>'
+        off = struct.unpack(end + 'I', t[4:8])[0]
+        n = struct.unpack(end + 'H', t[off:off + 2])[0]
+        for k in range(n):
+            p = off + 2 + 12 * k
+            if struct.unpack(end + 'H', t[p:p + 2])[0] == 0x0112:
+                return struct.unpack(end + 'H', t[p + 8:p + 10])[0]
+    except Exception:
+        pass
+    return 1
 
-    # Draw month and year first (before reflection)
-    month_text = f"{MESES[month-1]}"
-    text_width = draw.textlength(month_text, font=title_font)
-    draw.text(((width - text_width) // 2, header_y + (month_area_height - 60) // 2), month_text, font=title_font, fill='black')
-    
-    # Create and paste the flipped image in front of month name area
-    reflection = month_image.copy()
-    reflection = reflection.transpose(Image.FLIP_TOP_BOTTOM)
-    
-    # Create a temporary image for the visible part of reflection (250px height)
-    visible_height = 250
-    temp_image = Image.new('RGBA', (table_width, visible_height), (255, 255, 255, 0))
-    
-    # Crop the top portion of the flipped image
-    cropped_reflection = reflection.crop((0, 0, reflection.width, visible_height))
-    
-    # Make it more visible (50% opacity)
-    mask = Image.new('L', cropped_reflection.size, 128)  # Changed from 50 to 128 for more visibility
-    cropped_reflection.putalpha(mask)
-    
-    # Paste the cropped reflection
-    temp_image.paste(cropped_reflection, (0, 0), cropped_reflection)
-    
-    # Paste the visible portion directly under the main image
-#    image.paste(temp_image, (image_x, month_image.height - 305), temp_image)
-    
-    # Update position for days row
-    days_y = header_y + month_area_height + 40
-    
-    # Draw "Semana" header
-    week_text = "Semana"
-    text_width = draw.textlength(week_text, font=week_font)
-    draw.text((week_col_x + (week_col_width - text_width) // 2, days_y + (first_row_height - 50) // 2), 
-              week_text, font=week_font, fill='black')
-    
-    # Draw days
-    for i, day in enumerate(DIAS):
-        text_width = draw.textlength(day, font=day_font)
-        x = start_x + (cell_width * i) + (cell_width - text_width) // 2
-        y = days_y + (first_row_height - 79) // 2
-        draw.text((x, y), day, font=day_font, fill='black')
-    
-    # Calculate grid start position
-    grid_start_y = days_y + first_row_height
-    
-    # Get the calendar for the month
+
+def strip_jpeg(path):
+    """Quita APPn/COM previos al primer SOS: menos peso, mismo bitstream."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    out = bytearray(data[:2])
+    i, n = 2, len(data)
+    while i < n - 1 and data[i] == 0xFF and data[i + 1] in tuple(range(0xE0, 0xF0)) + (0xFE,):
+        i += 2 + struct.unpack('>H', data[i + 2:i + 4])[0]
+    return bytes(out) + data[i:]
+
+
+def _tiff_tags(data):
+    end = '<' if data[:2] == b'II' else '>'
+    off = struct.unpack(end + 'I', data[4:8])[0]
+    n = struct.unpack(end + 'H', data[off:off + 2])[0]
+    tags = {}
+    for k in range(n):
+        p = off + 2 + 12 * k
+        tag, typ, cnt = struct.unpack(end + 'HHI', data[p:p + 8])
+        size = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8}.get(typ, 1)
+        if size * cnt <= 4:
+            raw = data[p + 8:p + 8 + size * cnt]
+        else:
+            vo = struct.unpack(end + 'I', data[p + 8:p + 12])[0]
+            raw = data[vo:vo + size * cnt]
+        if typ == 3:
+            vals = [struct.unpack(end + 'H', raw[j:j + 2])[0] for j in range(0, len(raw), 2)]
+        elif typ == 4:
+            vals = [struct.unpack(end + 'I', raw[j:j + 4])[0] for j in range(0, len(raw), 4)]
+        else:
+            vals = list(raw)
+        tags[tag] = vals
+    return tags, end
+
+
+def tiff_to_rgb(path):
+    """TIFF RGB sin comprimir (8 o 16 bits) -> (w, h, bytes RGB de 8 bits)."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    if data[:2] not in (b'II', b'MM') or struct.unpack('<H' if data[:2] == b'II' else '>H',
+                                                        data[2:4])[0] != 42:
+        raise ValueError('%s: no es TIFF clasico' % path)
+    t, end = _tiff_tags(data)
+    if t.get(259, [1])[0] != 1:
+        raise ValueError('%s: TIFF comprimido (Compression=%d). Exporta en JPEG o sin comprimir.'
+                         % (path, t[259][0]))
+    if t.get(262, [2])[0] != 2:
+        raise ValueError('%s: TIFF no RGB (Photometric=%d)' % (path, t[262][0]))
+    if t.get(284, [1])[0] != 1:
+        raise ValueError('%s: TIFF planar (PlanarConfig=%d)' % (path, t[284][0]))
+    w, h = t[256][0], t[257][0]
+    bits = t.get(258, [8])[0]
+    spp = t.get(277, [3])[0]
+    if spp != 3:
+        raise ValueError('%s: %d canales, se esperaban 3 (RGB)' % (path, spp))
+    offs = t[273]
+    counts = t.get(279)
+    if not counts:
+        raise ValueError('%s: TIFF sin StripByteCounts' % path)
+    raw = bytearray()
+    for o, c in zip(offs, counts):
+        raw += data[o:o + c]
+    if bits == 16:
+        # 16 bits -> 8 bits tomando el byte alto: en little-endian esta en el indice impar
+        raw = raw[1::2] if end == '<' else raw[0::2]
+    elif bits != 8:
+        raise ValueError('%s: %d bits por canal no soportado' % (path, bits))
+    need = w * h * 3
+    if len(raw) < need:
+        raise ValueError('%s: faltan datos (%d de %d bytes)' % (path, len(raw), need))
+    return w, h, bytes(raw[:need])
+
+
+# ---------------- primitivas de contenido ----------------
+def _esc(s):
+    b = s.encode('cp1252', 'replace')
+    return b.replace(b'\\', b'\\\\').replace(b'(', b'\\(').replace(b')', b'\\)')
+
+
+def _rgb(c):
+    return '%.3f %.3f %.3f' % c
+
+
+def msg(text, x, y, size, bold=False, anchor='left', color=(0, 0, 0)):
+    w = text_width(text, size, bold) / MM
+    if anchor == 'center':
+        x -= w / 2.0
+    elif anchor == 'right':
+        x -= w
+    return ('BT %s %.2f Tf %s rg 1 0 0 1 %.3f %.3f Tm (%s) Tj ET'
+            % ('/F2' if bold else '/F1', size, _rgb(color), x * MM, y * MM,
+               _esc(text).decode('latin-1')))
+
+
+def _disp_dims(iw, ih, orient):
+    return (ih, iw) if orient in (6, 8) else (iw, ih)
+
+
+def _img_matrix(x, y, dW, dH, orient):
+    if orient == 3:
+        return '%.4f 0 0 %.4f %.4f %.4f' % (-dW * MM, -dH * MM, (x + dW) * MM, (y + dH) * MM)
+    if orient == 6:
+        return '0 %.4f %.4f 0 %.4f %.4f' % (-dH * MM, dW * MM, x * MM, (y + dH) * MM)
+    if orient == 8:
+        return '0 %.4f %.4f 0 %.4f %.4f' % (dH * MM, -dW * MM, (x + dW) * MM, y * MM)
+    return '%.4f 0 0 %.4f %.4f %.4f' % (dW * MM, dH * MM, x * MM, y * MM)
+
+
+def _box(iw, ih, orient, x, y, w, h, mode='cover', shrink=1.0):
+    dw0, dh0 = _disp_dims(iw, ih, orient)
+    sc = (max if mode == 'cover' else min)(w / dw0, h / dh0) * shrink
+    dW, dH = dw0 * sc, dh0 * sc
+    return x + (w - dW) / 2.0, y + (h - dH) / 2.0, dW, dH
+
+
+def place_cover(ops, img, x, y, w, h):
+    num, iw, ih, orient = img
+    bx, by, dW, dH = _box(iw, ih, orient, x, y, w, h, 'cover')
+    ops.append('q %.4f %.4f %.4f %.4f re W n' % (x * MM, y * MM, w * MM, h * MM))
+    ops.append('q %s cm /Im%d Do Q' % (_img_matrix(bx, by, dW, dH, orient), num))
+    ops.append('Q')
+
+
+def place_fit_alpha(ops, img, x, y, w, h, shrink=0.94):
+    num, iw, ih, orient = img
+    bx, by, dW, dH = _box(iw, ih, orient, x, y, w, h, 'contain', shrink)
+    ops.append('q /GS1 gs %s cm /Im%d Do Q' % (_img_matrix(bx, by, dW, dH, orient), num))
+
+
+# ---------------- PDF ----------------
+class PdfDoc:
+    def __init__(self):
+        self.objs = {}
+        self.n = 0
+
+    def add(self, body):
+        self.n += 1
+        self.objs[self.n] = body
+        return self.n
+
+    def stream(self, data, extra=''):
+        self.n += 1
+        head = ('<< /Length %d %s >>\nstream\n' % (len(data), extra)).encode('latin-1')
+        self.objs[self.n] = head + data + b'\nendstream'
+        return self.n
+
+    def build(self, root, fh):
+        out = bytearray(b'%PDF-1.4\n%\xe2\xe3\xcf\xd3\n')
+        offs = {}
+        for num in sorted(self.objs):
+            offs[num] = len(out)
+            out += ('%d 0 obj\n' % num).encode() + self.objs[num] + b'\nendobj\n'
+        xref = len(out)
+        total = self.n + 1
+        out += ('xref\n0 %d\n' % total).encode() + b'0000000000 65535 f \n'
+        for i in range(1, total):
+            out += ('%010d 00000 n \n' % offs[i]).encode()
+        out += ('trailer\n<< /Size %d /Root %d 0 R >>\nstartxref\n%d\n%%%%EOF\n'
+                % (total, root, xref)).encode()
+        fh.write(out)
+
+
+def add_image(doc, path):
+    """Devuelve (num_objeto, w, h, orientacion). JPEG tal cual; TIFF -> Flate."""
+    with open(path, 'rb') as f:
+        magic = f.read(4)
+    if magic[:2] == b'\xff\xd8':
+        w, h, ncomp, prec = jpeg_info(path)
+        if prec != 8:
+            raise ValueError('%s: JPEG de %d bits; exporta en 8 bits' % (path, prec))
+        cs = {1: '/DeviceGray', 3: '/DeviceRGB', 4: '/DeviceCMYK'}.get(ncomp)
+        if cs is None:
+            raise ValueError('%s: %d componentes' % (path, ncomp))
+        extra = ('/Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace %s '
+                 '/BitsPerComponent 8 /Filter /DCTDecode' % (w, h, cs))
+        if ncomp == 4:
+            extra += ' /Decode [1 0 1 0 1 0 1 0]'
+        return doc.stream(strip_jpeg(path), extra), w, h, exif_orientation(path)
+    if magic[:2] in (b'II', b'MM'):
+        w, h, rgb = tiff_to_rgb(path)
+        extra = ('/Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB '
+                 '/BitsPerComponent 8 /Filter /FlateDecode' % (w, h))
+        return doc.stream(zlib.compress(rgb, 6), extra), w, h, 1
+    raise ValueError('%s: formato no soportado (usa JPEG o TIFF RGB sin comprimir)' % path)
+
+
+def render_month(doc, parent, year, month, photo, title, specials, fonts, xobjs):
     cal = calendar.monthcalendar(year, month)
-    
-    # Draw the grid and numbers
-    start_y = grid_start_y
-    
-    # Draw horizontal lines (excluding week column top and bottom borders)
-    # First row (header)
-    draw.line([(start_x, grid_start_y), (week_col_x, grid_start_y)], fill='black', width=2)
-    # Line after header (at first_row_height)
-    draw.line([(start_x, start_y), (week_col_x, start_y)], fill='black', width=2)
-    # Rest of the rows
-    for i in range(1, 7):
-        y = start_y + (i * cell_height)
-        draw.line([(start_x, y), (week_col_x, y)], fill='black', width=2)
+    rows = len(cal)
+    cell_h = (GRID_TOP - GRID_BOTTOM) / rows
+    ops = []
 
-    # Draw vertical lines
-    # First draw calendar grid lines
-    for i in range(8):
-        x = start_x + (i * cell_width)
-        draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
-    
-    # Do not draw week numbers column line to remove border
+    if photo:
+        place_cover(ops, photo, 0, PHOTO_H, PAGE_W, PAGE_H - PHOTO_H)
 
-    # Add shadows for weekend columns (Saturday=5, Sunday=6) only
-    for week_num in range(len(cal)):
-        # Shadow for Saturday (day 5) and Sunday (day 6)
-        for day_num in [5, 6]:  # Saturday and Sunday
-            if week_num < len(cal) and cal[week_num][day_num] != 0:  # Only if day exists
-                shadow_rect = [(start_x + day_num * cell_width + 2, start_y + week_num * cell_height + 2), 
-                              (start_x + (day_num + 1) * cell_width - 2, start_y + (week_num + 1) * cell_height - 2)]
-                draw.rectangle(shadow_rect, fill=(240, 240, 240))  # Light gray shadow
+    if title:
+        size, pad = 12.0, 3.0
+        tw = text_width(title, size, True) / MM
+        bx = PAGE_W - BLEED - 3.0 - tw - 2 * pad
+        by = PHOTO_H + 4.0
+        ops.append('q 1 1 1 rg %.3f %.3f %.3f %.3f re f Q'
+                   % (bx * MM, by * MM, (tw + 2 * pad) * MM, (size / MM + 2 * pad) * MM))
+        ops.append(msg(title, bx + pad, by + pad + size / MM * 0.28, size, True))
 
-    # Redraw grid lines on top of shadows to keep borders visible
-    # Draw horizontal lines (excluding week column top and bottom borders)
-    for i in range(7):
-        y = start_y + (i * cell_height)
-        draw.line([(start_x, y), (week_col_x, y)], fill='black', width=2)
-    
-    # Draw vertical lines (excluding week column right border)
-    for i in range(8):
-        x = start_x + (i * cell_width)
-        draw.line([(x, grid_start_y), (x, start_y + (6 * cell_height))], fill='black', width=2)
-    
-    # Do not redraw week numbers column line to remove border
+    # Banda translucida: sin ella el nombre del mes es ilegible sobre la foto.
+    ops.append('q /GS2 gs 1 1 1 rg %.3f %.3f %.3f %.3f re f Q'
+               % (CONTENT_X0 * MM, MONTH_BAND_Y0 * MM, CONTENT_W * MM, MONTH_BAND * MM))
+    ops.append('q /GS2 gs 0.55 0.55 0.55 rg %.3f %.3f %.3f %.1f re f Q'
+               % (CONTENT_X0 * MM, MONTH_BAND_Y0 * MM, CONTENT_W * MM, 0.9))
+    ops.append(msg(MESES[month - 1], PAGE_W / 2.0, MONTH_BAND_Y0 + 7.0, 27, True, 'center'))
 
-    # Fill in the numbers and week numbers
-    for week_num, week in enumerate(cal):
-        # Add week number
-        if any(day != 0 for day in week):  # Only add week number if week has days
-            # Get the date of the first day of the week that's not 0
-            first_day_of_week = next(day for day in week if day != 0)
-            week_date = date(year, month, first_day_of_week)
-            week_number = week_date.isocalendar()[1]
-            week_text = str(week_number)
-            text_width = draw.textlength(week_text, font=number_font)  # Use same font as day numbers
-            x = week_col_x + (week_col_width - text_width) // 2
-            y = start_y + (week_num * cell_height) + (cell_height - 60) // 2  # Center vertically
-            draw.text((x, y), week_text, font=number_font, fill='black')  # Use same font as day numbers
-        
-        # Fill in the days
-        for day_num, day in enumerate(week):
-            if day != 0:
-                # Add background image for special days
-                for special_day in SPECIAL_DAYS:
-                    if month == special_day['month'] and day == special_day['day']:
-                        try:
-                            # Try multiple extensions for special images too if not found
-                            possible_names = [special_day['image']]
-                            base_name = os.path.splitext(special_day['image'])[0]
-                            for ext in ['.jpg', '.JPG', '.jpeg', '.JPEG', '.tif', '.TIF', '.tiff', '.TIFF', '.png', '.PNG', '.webp', '.WEBP']:
-                                if base_name + ext not in possible_names:
-                                    possible_names.append(base_name + ext)
-                            
-                            special_image_path = None
-                            for name in possible_names:
-                                path = f"imagenes_special_days/{name}"
-                                if os.path.exists(path):
-                                    special_image_path = path
-                                    break
-                            
-                            if not special_image_path:
-                                raise FileNotFoundError(f"Image {special_day['image']} not found")
+    for i, d in enumerate(DIAS):
+        ops.append(msg(d, CONTENT_X0 + CELL_W * (i + 0.5), HDR_Y0 + 3.6, 13.5, True, 'center'))
+    ops.append(msg('Sem.', CONTENT_X0 + DAY_W + WEEK_COL / 2.0, HDR_Y0 + 3.6, 10.5, True, 'center'))
 
-                            # Load and resize the special image
-                            special_image = Image.open(special_image_path)
-                            special_image = special_image.resize((cell_width, cell_height), Image.LANCZOS)
-                            # Make it semi-transparent
-                            special_image.putalpha(128)  # 50% opacity
-                            # Paste it into the cell
-                            cell_x = start_x + day_num * cell_width
-                            cell_y = grid_start_y + week_num * cell_height
-                            image.paste(special_image, (cell_x, cell_y), special_image)
-                            
-                            # Add the special day title below the date
-                            title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 12)  # Smaller font for the title
-                            title_text = special_day['title']
-                            title_width = draw.textlength(title_text, font=title_font)
-                            title_x = cell_x + (cell_width - title_width) // 2
-                            title_y = cell_y + cell_height - 20  # 20px from bottom
-                            draw.text((title_x, title_y), title_text, font=title_font, fill='black')
-                        except FileNotFoundError:
-                            print(f"Warning: Image {special_day['image']} (or variants) not found for {special_day['title']}")
-                
-                # Draw the day number
-                day_text = str(day)
-                text_width = draw.textlength(day_text, font=number_font)
-                text_x = start_x + day_num * cell_width + cell_width - text_width - 10  # Move to right with padding
-                text_y = start_y + week_num * cell_height + 10  # Move up with padding
-                draw.text((text_x, text_y), day_text, font=number_font, fill='black')
+    for r, week in enumerate(cal):
+        for c in (5, 6):
+            if c < len(week) and week[c] != 0:
+                cx = CONTENT_X0 + c * CELL_W
+                cy = GRID_TOP - (r + 1) * cell_h
+                ops.append('q 0.945 0.945 0.945 rg %.3f %.3f %.3f %.3f re f Q'
+                           % (cx * MM, cy * MM, CELL_W * MM, cell_h * MM))
 
-    return image
+    for r, week in enumerate(cal):
+        for c, day in enumerate(week):
+            sp = specials.get((month, day)) if day else None
+            if sp:
+                cx = CONTENT_X0 + c * CELL_W
+                cy = GRID_TOP - (r + 1) * cell_h
+                place_fit_alpha(ops, sp['img'], cx + 1, cy + 4, CELL_W - 2, cell_h - 5)
 
+    def line(x1, y1, x2, y2, lw=0.5):
+        ops.append('q %.2f w 0 0 0 RG %.3f %.3f m %.3f %.3f l S Q'
+                   % (lw, x1 * MM, y1 * MM, x2 * MM, y2 * MM))
+
+    ops.append('q 0.8 w 0 0 0 RG %.3f %.3f %.3f %.3f re S Q'
+               % (CONTENT_X0 * MM, GRID_BOTTOM * MM, DAY_W * MM, (GRID_TOP - GRID_BOTTOM) * MM))
+    for r in range(1, rows):
+        y = GRID_TOP - r * cell_h
+        line(CONTENT_X0, y, CONTENT_X0 + DAY_W, y)
+    for c in range(1, 7):
+        x = CONTENT_X0 + c * CELL_W
+        line(x, GRID_BOTTOM, x, GRID_TOP)
+    line(CONTENT_X0 + DAY_W, GRID_BOTTOM, CONTENT_X0 + DAY_W, GRID_TOP)
+
+    for r, week in enumerate(cal):
+        cy_top = GRID_TOP - r * cell_h
+        if any(week):
+            first = next(d for d in week if d != 0)
+            wk = date(year, month, first).isocalendar()[1]
+            ops.append(msg(str(wk), CONTENT_X0 + DAY_W + WEEK_COL / 2.0,
+                           cy_top - cell_h / 2.0 - 1.7, 12, False, 'center', (0.3, 0.3, 0.3)))
+        for c, day in enumerate(week):
+            if not day:
+                continue
+            cx = CONTENT_X0 + c * CELL_W
+            ops.append(msg(str(day), cx + CELL_W - 2.0, cy_top - 7.0, 13, True, 'right'))
+            sp = specials.get((month, day))
+            if sp:
+                ops.append(msg(sp['title'], cx + CELL_W / 2.0, cy_top - cell_h + 3.0,
+                               8.5, True, 'center'))
+
+    cnum = doc.stream('\n'.join(ops).encode('latin-1'))
+    xo = ' '.join('/Im%d %d 0 R' % (k, k) for k in sorted(xobjs))
+    page = ('<< /Type /Page /Parent %d 0 R '
+            '/MediaBox [0 0 %.3f %.3f] /TrimBox [%.3f %.3f %.3f %.3f] '
+            '/BleedBox [0 0 %.3f %.3f] /CropBox [0 0 %.3f %.3f] '
+            '/Resources << /XObject << %s >> /Font << /F1 %d 0 R /F2 %d 0 R >> '
+            '/ExtGState << /GS1 << /ca 0.32 /CA 0.32 >> /GS2 << /ca 0.78 /CA 0.78 >> >> >> '
+            '/Contents %d 0 R >>'
+            % (parent, PAGE_W * MM, PAGE_H * MM,
+               BLEED * MM, BLEED * MM, (PAGE_W - BLEED) * MM, (PAGE_H - BLEED) * MM,
+               PAGE_W * MM, PAGE_H * MM, PAGE_W * MM, PAGE_H * MM,
+               xo, fonts[0], fonts[1], cnum))
+    return doc.add(page.encode('latin-1'))
+
+
+# ---------------- entrada / configuracion ----------------
 def find_image(month_name, directory):
-    """Search for an image with various supported extensions."""
-    extensions = ['.jpg', '.JPG', '.jpeg', '.JPEG', '.tif', '.TIF', '.tiff', '.TIFF', '.png', '.PNG', '.webp', '.WEBP']
-    for ext in extensions:
-        path = os.path.join(directory, f'{month_name}{ext}')
-        if os.path.exists(path):
-            return path
+    for ext in EXT:
+        for cand in (month_name + ext, month_name + ext.upper()):
+            p = os.path.join(directory, cand)
+            if os.path.exists(p):
+                return p
     return None
 
-def load_and_resize_image(month, year, width=3508, height=2480):
-    """Load and resize image for the given month and year. Return a white image if no image exists."""
-    month_name = MESES[month-1]
-    
-    # Try to load the year-specific image first, then fall back to default
-    image_path = find_image(month_name, os.path.join('pics', str(year)))
-    if not image_path:
-        image_path = find_image(month_name, 'imagenes_ejemplo')
-    
-    try:
-        if image_path and os.path.exists(image_path):
-            with Image.open(image_path) as img:
-                # Convert to RGB if necessary
-                if img.mode != 'RGB' and img.mode != 'RGBA':
-                    img = img.convert('RGB')
-                elif img.mode == 'RGBA':
-                    # Create white background for transparent images
-                    background = Image.new('RGB', img.size, (255, 255, 255))
-                    background.paste(img, mask=img.split()[3]) # 3 is alpha channel
-                    img = background
-                
-                # Resize maintaining aspect ratio to fill the area OR fit as requested
-                # Since the user asked for a specific size, we use thumbnail to fit within it
-                img.thumbnail((width, height), Image.LANCZOS)
-                # Create new image with white background
-                new_img = Image.new('RGB', (width, height), 'white')
-                # Calculate position to center the image
-                x = (width - img.width) // 2
-                y = (height - img.height) // 2
-                # Paste the resized image
-                new_img.paste(img, (x, y))
-                return new_img
-        else:
-            if not image_path:
-                print(f"Warning: No image found for {month_name} in pics/{year} or imagenes_ejemplo")
-            else:
-                print(f"Warning: Image not found at {image_path}")
-            return Image.new('RGB', (width, height), 'white')
-    except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        return Image.new('RGB', (width, height), 'white')
+
+def load_titles(year):
+    p = os.path.join('pics', str(year), 'titles.txt')
+    if os.path.exists(p):
+        with open(p, encoding='utf-8') as f:
+            lines = [l.strip() for l in f if l.strip()]
+        if len(lines) == 12:
+            return lines
+        print('AVISO: %s debe tener 12 lineas (tiene %d); sin titulos.' % (p, len(lines)))
+    return ['' for _ in range(12)]
+
+
+def load_specials(path='especiales.json'):
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    return SPECIAL_DAYS
+
+
+def _new_doc():
+    doc = PdfDoc()
+    f1 = doc.add(b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>')
+    f2 = doc.add(b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>')
+    return doc, (f1, f2)
+
+
+def _build_page(doc, fonts, pages_ref, year, month, photo_path, title, specials_spec, specials_dir):
+    """Anade imagen(es) y pagina al documento. Devuelve la ref de la pagina."""
+    xobjs = set()
+    photo = None
+    if photo_path:
+        photo = add_image(doc, photo_path)
+        xobjs.add(photo[0])
+        _, iw, ih, orient = photo
+        dw, dh = _disp_dims(iw, ih, orient)
+        dpi = min(dw / (CONTENT_W / 25.4), dh / (PHOTO_H / 25.4))
+        print('  %-11s %-28s %5dx%-5d %.0f dpi%s'
+              % (MESES[month - 1], os.path.basename(photo_path), iw, ih, dpi,
+                 '  <-- baja' if dpi < 300 else ''))
+    else:
+        print('  %-11s sin foto' % MESES[month - 1])
+
+    specials = {}
+    for spec in specials_spec:
+        if spec['month'] != month:
+            continue
+        p = os.path.join(specials_dir, spec['image'])
+        if not os.path.exists(p):
+            print('  AVISO: falta %s (%s); ese dia sale sin imagen' % (p, spec['title']))
+            continue
+        try:
+            img = add_image(doc, p)
+        except Exception as e:
+            print('  AVISO: %s no usable: %s' % (p, e))
+            continue
+        specials[(spec['month'], spec['day'])] = {'title': spec['title'], 'img': img}
+        xobjs.add(img[0])
+
+    return render_month(doc, pages_ref, year, month, photo, title, specials, fonts, xobjs)
+
+
+def _finish(doc, pages_ref, kids, out_path):
+    doc.objs[pages_ref] = ('<< /Type /Pages /Count %d /Kids [%s] >>'
+                           % (len(kids), ' '.join('%d 0 R' % k for k in kids))).encode('latin-1')
+    catalog = doc.add(('<< /Type /Catalog /Pages %d 0 R >>' % pages_ref).encode('latin-1'))
+    with open(out_path, 'wb') as f:
+        doc.build(catalog, f)
+    print('  -> %s (%.1f MB)' % (out_path, os.path.getsize(out_path) / 1e6))
+
+
+def build_year(year, out_dir, combined, specials_spec, specials_dir):
+    titles = load_titles(year)
+    paths = {m: find_image(MESES[m - 1], os.path.join('pics', str(year))) for m in range(1, 13)}
+    os.makedirs(out_dir, exist_ok=True)
+
+    if combined:
+        doc, fonts = _new_doc()
+        pages_ref = doc.add(b'X')
+        kids = [_build_page(doc, fonts, pages_ref, year, m, paths[m], titles[m - 1],
+                            specials_spec, specials_dir) for m in range(1, 13)]
+        _finish(doc, pages_ref, kids, os.path.join(out_dir, 'calendario-%d.pdf' % year))
+        return
+
+    for m in range(1, 13):
+        doc, fonts = _new_doc()
+        pages_ref = doc.add(b'X')
+        page = _build_page(doc, fonts, pages_ref, year, m, paths[m], titles[m - 1],
+                           specials_spec, specials_dir)
+        _finish(doc, pages_ref, [page], os.path.join(out_dir, '%s.pdf' % MESES[m - 1]))
+
 
 def main():
-    # Set up argument parser
-    parser = argparse.ArgumentParser(description='Generate calendars for a specific year')
-    parser.add_argument('year', type=int, help='Year to generate calendars for')
-    args = parser.parse_args()
-    
-    year = args.year
-    
-    # Create output directory if it doesn't exist
-    output_dir = f"calendarios_pdf"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    # Create pics directory for the year if it doesn't exist
-    year_pics_dir = os.path.join('pics', str(year))
-    if not os.path.exists(year_pics_dir):
-        os.makedirs(year_pics_dir)
-        print(f"Created directory for year's pictures: {year_pics_dir}")
-        print(f"Please add your images for {year} in this directory using names like 'Enero.jpg', 'Febrero.tif', etc.")
-        print(f"Supported extensions: .jpg, .jpeg, .tif, .tiff, .png, .webp")
-        print("\nOptionally, create a 'titles.txt' file in the same directory with 12 lines,")
-        print("each line containing a title for the corresponding month's image.")
-    
-    # Load titles for the year
-    titles = load_titles(year)
-    
-    # Generate calendars for each month
-    for month in range(1, 13):
-        output_file = os.path.join(output_dir, f"{MESES[month-1]}.pdf")
-        calendar_image = create_calendar(year, month, titles)
-        calendar_image.save(output_file)
-        print(f"Generated calendar for {MESES[month-1]} {year}")
-    
-    print(f"Calendarios generados con éxito en la carpeta '{output_dir}'")
+    ap = argparse.ArgumentParser(description='Genera calendarios A3 (12 meses) sin dependencias.')
+    ap.add_argument('year', nargs='?', type=int, default=datetime.now().year)
+    ap.add_argument('--out', default='calendarios_pdf', help='carpeta de salida')
+    ap.add_argument('--specials-dir', default='imagenes_special_days')
+    ap.add_argument('--combined', action='store_true', help='un solo PDF de 12 paginas')
+    args = ap.parse_args()
+    build_year(args.year, args.out, args.combined, load_specials(), args.specials_dir)
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
