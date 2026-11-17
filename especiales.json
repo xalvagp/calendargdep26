@@ -1,0 +1,9 @@
+[
+  {"month": 1, "day": 1, "title": "Año Nuevo", "image": "new_year.jpg"},
+  {"month": 2, "day": 10, "title": "Naná", "image": "agp.jpg"},
+  {"month": 5, "day": 26, "title": "Salva", "image": "sgp.jpg"},
+  {"month": 6, "day": 24, "title": "Marta", "image": "mdp.jpg"},
+  {"month": 8, "day": 19, "title": "Malou", "image": "malou.jpg"},
+  {"month": 11, "day": 23, "title": "Clara", "image": "cgp.jpg"},
+  {"month": 12, "day": 24, "title": "Noche buena", "image": "noche_buena.jpg"}
+]
