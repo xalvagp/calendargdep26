@@ -1,0 +1,14 @@
+# Salida generada
+calendarios_pdf/
+*.pdf
+
+# Fotos pesadas: exportar JPEG desde darktable y no versionar los TIFF
+pics/**/*.tif
+pics/**/*.tiff
+pics/**/*.TIF
+pics/**/*.TIFF
+*.xmp
+
+# Python
+__pycache__/
+*.py[cod]
